@@ -1,0 +1,7 @@
+package goodreads
+
+object Main {
+
+  ???
+
+}
