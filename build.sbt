@@ -1,8 +1,9 @@
-lazy val root = (project in file(".")).
-  settings(
-    name := "goodreads",
-    version := "1.0",
-    scalaVersion := "2.11.8"
-  )
+name := "Goodreads Wrapper"
+organization := "io.github.alexisraykhel"
+version := "0.0.1"
+scalaVersion := "2.11.8"
 
-libraryDependencies += "org.scalaz" %% "scalaz-core" % "7.2.4"
+libraryDependencies ++=
+  List(
+    "org.scalaz" %% "scalaz-core" % "7.2.4",
+    "io.argonaut" %% "argonaut" % "6.1")
