@@ -2,7 +2,7 @@ package goodreads
 
 object Main extends App{
 
-  val a = Author.getAuthorDeets(18541, "dk").getOrElse("There was an error. :(")
+  val a = Author.getAuthorDeets(1077326, "")
   println(a)
 
 }

@@ -5,14 +5,15 @@ import java.io.IOException
 
 import goodreads.gstuff.{GDisjunction, IOError}
 
-import scala.xml.{Elem, XML}
+import scala.xml.{NodeSeq, Elem, XML}
 import scalaz.{-\/, \/-, \/}
 
 
-case class Author(name: String, id: String)
-//in the future wouldn't it be nice to get more info on an author! For now, let's do something easy
-{
-}
+case class Author(name: Option[String], id: Option[Int], link: Option[String], fansCount: Option[Int],
+                   authorFollowersCount: Option[Int], influences: Option[String], worksCount: Option[Int],
+                   gender: Option[String], hometown: Option[String], bornAt: Option[String], diedAt: Option[String],
+                   goodreadsAuthor: Option[Boolean])
+
 
 object Author {
 
@@ -25,7 +26,36 @@ object Author {
 
     for {
       x <- url
-    } yield Author(x.\\("name").text, x.\\("id").text)
-  }
+    } yield {
 
+      def toMaybeInt(os: Option[String]): Option[Int] = os.fold(Option.empty[Int])(s => Some(s.toInt))
+
+      def toMaybeBoolean(os: Option[String]): Option[Boolean] = os.fold(Option.empty[Boolean])(s => try {
+        Some(s.toBoolean)
+      } catch {
+        case i: IllegalArgumentException => None
+        }
+      )
+
+      def getAuthorString(s: String): Option[String] = {
+        val output: NodeSeq = x.\("author").\(s)
+        if (output.isEmpty) None else Some(output.text)
+      }
+//      Author(x.\("author").\("name").text, x.\("author").\("id").text)
+      val name = getAuthorString("name")
+      val id = toMaybeInt(getAuthorString("id"))
+      val link = getAuthorString("link")
+      val fansCount = toMaybeInt(getAuthorString("fans_count"))
+      val authorFollowersCount = toMaybeInt(getAuthorString("author_followers_count"))
+      val influences = getAuthorString("influences")
+      val worksCount = toMaybeInt(getAuthorString("works_count"))
+      val gender = getAuthorString("gender")
+      val hometown = getAuthorString("hometown")
+      val bornAt = getAuthorString("born_at")
+      val diedAt = getAuthorString("died_at")
+      val goodreadsAuthor = toMaybeBoolean(getAuthorString("goodreads_author"))
+      Author(name, id, link, fansCount, authorFollowersCount, influences, worksCount, gender,
+      hometown, bornAt, diedAt, goodreadsAuthor)
+    }
+  }
 }
