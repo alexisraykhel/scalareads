@@ -15,14 +15,13 @@ case class Author(name: Option[String], id: Option[Int], link: Option[String], f
                    gender: Option[String], hometown: Option[String], bornAt: Option[String], diedAt: Option[String],
                    goodreadsAuthor: Option[Boolean], works: List[SimpleBook]) {
 
-  def getAuthorsBook(sbs: SimpleBook): GReader[GDisjunction[Book]] =
-    Reader((env: GEnvironment) => Book(sbs.isbn)(env))
+  def getAuthorsBook(sbs: SimpleBook)(env: GEnvironment): GDisjunction[Book] = Book(sbs.isbn)(env)
 }
 
 
 object Author {
 
-  def apply(id: Int): GReader[GDisjunction[Author]] = Reader((env: GEnvironment) => {
+  def apply(id: Int)(env: GEnvironment): GDisjunction[Author] = {
     val url: GDisjunction[Elem] = try {
       \/-(XML.load("https://www.goodreads.com/author/show/" + id.toString + "?format=xml&key=" + env.devKey))
     } catch {
@@ -74,5 +73,4 @@ object Author {
       hometown, bornAt, diedAt, goodreadsAuthor, books)
     }
   }
-  )
 }
