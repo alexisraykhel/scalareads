@@ -13,13 +13,15 @@ import scalaz._
 case class Author(name: Option[String], id: Option[Int], link: Option[String], fansCount: Option[Int],
                    authorFollowersCount: Option[Int], influences: Option[String], worksCount: Option[Int],
                    gender: Option[String], hometown: Option[String], bornAt: Option[String], diedAt: Option[String],
-                   goodreadsAuthor: Option[Boolean], works: List[SimpleBook]) {
+                   goodreadsAuthor: Option[Boolean], works: List[SimpleBook]) extends GResult {
 
   def getAuthorsBook(sbs: SimpleBook)(env: GEnvironment): GDisjunction[Book] = Book(sbs.isbn)(env)
 }
 
 
 object Author {
+
+//  def theREALApply(id: Int) = apply(id)(theEnvironmentYoureUsing)
 
   def apply(id: Int)(env: GEnvironment): GDisjunction[Author] = {
     val url: GDisjunction[Elem] = try {
@@ -31,8 +33,6 @@ object Author {
     for {
       x <- url
     } yield {
-
-      def toMaybeInt(os: Option[String]): Option[Int] = os.fold(Option.empty[Int])(s => Some(s.toInt))
 
       def toMaybeBoolean(os: Option[String]): Option[Boolean] = os.fold(Option.empty[Boolean])(s => try {
         Some(s.toBoolean)
@@ -47,12 +47,12 @@ object Author {
       }
 
       val name = getAuthorString("name")
-      val id = toMaybeInt(getAuthorString("id"))
+      val id = optionToInt(getAuthorString("id"))
       val link = getAuthorString("link")
-      val fansCount = toMaybeInt(getAuthorString("fans_count"))
-      val authorFollowersCount = toMaybeInt(getAuthorString("author_followers_count"))
+      val fansCount = optionToInt(getAuthorString("fans_count"))
+      val authorFollowersCount = optionToInt(getAuthorString("author_followers_count"))
       val influences = getAuthorString("influences")
-      val worksCount = toMaybeInt(getAuthorString("works_count"))
+      val worksCount = optionToInt(getAuthorString("works_count"))
       val gender = getAuthorString("gender")
       val hometown = getAuthorString("hometown")
       val bornAt = getAuthorString("born_at")
