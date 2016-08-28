@@ -2,7 +2,7 @@
 
 A Goodreads API wrapper in Scala.
 
-Load it up use in sbt:
+Load it up and in sbt:
 
 ```
 run scalareads [--user id] [--book isbn] [--author id] --devkey string
