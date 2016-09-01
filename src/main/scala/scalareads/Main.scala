@@ -40,7 +40,14 @@ object Main extends TaskApp {
 
 
     d.fold(CommandLineError("No developer key found.").left[KeyAndResult])(ge => {
-      (ge, b.map(disjs => disjs.flatMap(_(ge)))).right[CommandLineError]
+      (ge, b.map(disjs => disjs.flatMap(x => {
+        val gresult = x(ge)
+        gresult.map(_ match {
+          case u@User(_,_,_,_) => println(u.readShelf(ge).map(l => l.length))
+          case _ => println("That's nice.")
+        })
+        gresult
+      }))).right[CommandLineError]
     })
   }
 }
