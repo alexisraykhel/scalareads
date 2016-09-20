@@ -58,9 +58,9 @@ object Author {
 
     val books: List[SimpleBook] = {
       val bookTitle: List[Node] = e.\("author").\("books").\("book").\("title").toList
-      val isbn = e.\("author").\("books").\("book").\("isbn").toList
+      val bookId = e.\("author").\("books").\("book").\("id").toList
 
-      isbn.zip(bookTitle).map(tup => SimpleBook(tup._1.text, tup._2.text))
+      bookId.zip(bookTitle).map(tup => SimpleBook(tup._1.text, tup._2.text))
     }
 
     Author(name, id, link, fansCount, authorFollowersCount, influences, worksCount, gender,

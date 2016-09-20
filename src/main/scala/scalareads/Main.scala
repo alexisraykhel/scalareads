@@ -1,5 +1,6 @@
 package scalareads
 
+import scalareads.recommender.NearestBook
 import scalareads.values._
 import ScalareadsFunctions._
 import scalaz.{\/, \/-, ImmutableArray}
@@ -18,7 +19,7 @@ object Main extends TaskApp {
 
   val usage =
     """
-      |Expected usage: scalareads [--user id] [--book isbn] [--author id] --devkey string
+      |Expected usage: scalareads [--user id] [--book id] [--author id] --devkey string
     """.stripMargin
 
   private def commandLineParse(l: List[String]): GDisjunction[KeyAndResult] = {
@@ -29,9 +30,9 @@ object Main extends TaskApp {
         val c: \/[GError, (GEnvironment) => GDisjunction[User]] = stringToInt(userId).map(i => User(i)_)
         c
       }
-      case List("--book", isbn: String) => \/-(Book(isbn)_)
+      case List("--book", bookId: String) => \/-(Book(bookId)_)
       case List("--author", authorId: String) => stringToInt(authorId).map(i => Author(i)_)
-      case List("--recommendToRead", userId: String) => stringToInt(userId).map(i => Recommendation(i)_)
+//      case List("--recommendToRead", userId: String) => stringToInt(userId).map(i => Recommendation(i)_)
     }
 
     val d: Option[GEnvironment] = l.sliding(2, 1).toList.collect {
@@ -42,8 +43,13 @@ object Main extends TaskApp {
     d.fold(CommandLineError("No developer key found.").left[KeyAndResult])(ge => {
       (ge, b.map(disjs => disjs.flatMap(x => {
         val gresult = x(ge)
-        gresult.map(_ match {
-          case u@User(_,_,_,_) => println(u.readShelf(ge).map(l => l.length))
+        gresult.map( {
+          case u@User(_,_,_,_, _) => {
+            val nearest = NearestBook(ge)(u)
+
+            println(nearest)
+            println(u.readShelf(ge).map(l => l.length))
+          }
           case _ => println("That's nice.")
         })
         gresult

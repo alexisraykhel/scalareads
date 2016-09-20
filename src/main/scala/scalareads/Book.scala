@@ -6,14 +6,16 @@ import java.io.IOException
 import scala.xml.{NodeSeq, XML, Elem}
 import scalaz.{-\/, \/-}
 
-case class Book(isbn: String,
+case class Book(id: String,
                 title: Option[String],
                 author: List[SimpleAuthor],
                 length: Option[Int],
                 averageRating: Option[Double],
                 popularShelves: Map[Int, String],
                 originalPublicationYear: Option[Int],
-                ratingDistribution: RatingDistribution) extends GResult
+                ratingDistribution: RatingDistribution) extends GResult {
+  val getSimple = SimpleBook(this.id, this.title.fold("")(identity))
+}
 
 case class RatingDistribution(fives: Option[Int],
                               fours: Option[Int],
@@ -33,15 +35,14 @@ case class RatingDistribution(fives: Option[Int],
 
 object Book {
 
-  def apply(isbn: String)(env: GEnvironment): GDisjunction[Book] = {
+  def apply(id: String)(env: GEnvironment): GDisjunction[Book] = {
     val url: GDisjunction[Elem] = try {
-      \/-(XML.load("https://www.goodreads.com/book/isbn/" + isbn + "?key=" + env.devKey))
-
+        \/-(XML.load("https://www.goodreads.com/book/show/" + id + ".xml?key=" + env.devKey))
     } catch {
       case i: IOException => -\/(IOError(i.toString))
     }
 
-    url.map(e => makeBook(e, isbn))
+    url.map(e => makeBook(e, id))
   }
 
   private def makeBook(e: Elem, i: String): Book = {

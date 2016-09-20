@@ -1,79 +1,177 @@
 package scalareads
 
+import scalareads.recommender.Tag
 import scalareads.values._
 import ScalareadsFunctions._
 import java.io.IOException
-import scala.xml.{XML, Elem}
+import scala.xml.{Node, XML, Elem}
 import scalaz.{\/, -\/, \/-}
 import scalaz.syntax.either._
 import scalaz.std.list._
 import scalaz.syntax.traverse._
 
-//todo: genre and averagestar, averagestar; these both require a little math
 
 case class User(username: Option[String], 
                 userId: Option[Int],
                 age: Option[Int], 
-                gender: Option[String]) extends GResult {
+                gender: Option[String],
+                 tags: Option[List[(Option[Int], Tag)]]) extends GResult {
 
-  def findInShelf(env: GEnvironment)(shelf: String): GDisjunction[List[SimpleBook]] = {
+  def findInShelf(env: GEnvironment)(shelf: String): GDisjunction[List[((SimpleBook, List[Tag]), Option[Int])]] = {
     def url(page: Int): GDisjunction[Elem] =
       try {
         \/-(XML.load("https://www.goodreads.com/review/list/" +
-          userId.get +".xml?key=" +  env.devKey + "&shelf=" + shelf + "&page=" + page))
+          userId.get +".xml?key=" +  env.devKey + "&shelf=" + shelf + "&page=" + page + "&v=2"))
       } catch {
         case i: IOException => -\/(IOError(i.toString))
       }
 
-    def simpleBookZip(e: Elem): List[SimpleBook] = {
-      val isbns = e.flatMap(n => n.\("books").\("book").\("isbn"))
-      val titles = e.flatMap(n => n.\("books").\("book").\("title"))
-      val zipped = isbns.zip(titles)
-      zipped.map(tup => SimpleBook(tup._1.text, tup._2.text))
-    }.toList
+    def simpleBookZip(e: Elem): List[((SimpleBook, List[Tag]), Option[Int])] = {
+      val bookIds: List[Node] = e.flatMap(n => n.\("reviews").\("review").\("book").\("id")).toList
+      val titles = e.flatMap(n => n.\("reviews").\("review").\("book").\("title")).toList
+      val userTags = e.flatMap(n => n.\("reviews").\("review").\("shelves"))
+        .toList.map(n => n.\("shelf").toList)
+        .map(lnds => lnds.map(n => Tag(n.\@("name"))))
+      val ratings = e.flatMap(n => n.\("reviews").\("review").\("rating")).map(x => optionToInt(Some(x.text))).toList
+
+      bookIds.zip(titles).map(tup => SimpleBook(tup._1.text, tup._2.text)).zip(userTags).zip(ratings)
+    }
 
     def endOfList(g: GDisjunction[Elem]): Boolean =
-      g.map(e => e.\("books").\@("end") == e.\("books").\@("total")) match {
+      g.map(e => e.\("reviews").\@("end") == e.\("reviews").\@("total")) match {
         case -\/(error) => false
         case \/-(good) => good
       }
 
-    def something(n: Int, es: List[GDisjunction[Elem]]): List[GDisjunction[Elem]] = {
+    def getAllPages(n: Int, es: List[GDisjunction[Elem]]): List[GDisjunction[Elem]] = {
       val u = url(n)
-      if (endOfList(url(n))) u :: es
-      else something(n + 1, u :: es)
+      if (endOfList(u)) {
+        val b = u :: es
+        b
+      }
+      else getAllPages(n + 1, u :: es)
     }
 
-    val listOfLists = something(1, List.empty).map(gdisj => gdisj.map(simpleBookZip))
+    val listOfLists = getAllPages(1, List.empty).map(gdisj => {
+      gdisj.map(s => {
+        val simp = simpleBookZip(s)
+        simp
+      })
+    })
 
-    listOfLists.foldLeft(List.empty[SimpleBook].right[GError])(
-      (o: \/[GError, List[SimpleBook]], d: \/[GError, List[SimpleBook]]) =>
+    val b = listOfLists.foldLeft(List.empty[((SimpleBook, List[Tag]), Option[Int])].right[GError])(
+      (o: \/[GError, List[((SimpleBook, List[Tag]), Option[Int])]], d: \/[GError, List[((SimpleBook, List[Tag]), Option[Int])]]) =>
       {
         for {
           firstL <- o
           secondL <- d
         } yield firstL ++ secondL
       })
+    b
   }
 
   def toReadShelf(env: GEnvironment) = findInShelf(env)("to-read")
   def readShelf(env: GEnvironment) = findInShelf(env)("read")
+
+  def readBooks(env: GEnvironment): GDisjunction[List[ReadBook]] = {
+    val found: GDisjunction[List[((SimpleBook, List[Tag]), Option[Int])]] = readShelf(env)
+
+    val somethingElse: GDisjunction[List[Book]] = for {
+      l <- found
+      mappedL = l.map(tup => tup._1._1.getBook(env))
+      sequenced = mappedL.sequenceU
+      tup <- sequenced //List[Book]
+    } yield tup
+
+    val zipped: GDisjunction[List[(((SimpleBook, List[Tag]), Option[Int]), Book)]] = for {
+      f <- found
+      b <- somethingElse
+    } yield f.zip(b)
+
+    zipped.map(list => list.map(trip => {
+      ReadBook(
+        trip._1._1._1,
+        trip._2,
+        trip._1._1._2,
+        trip._2.popularShelves.toList.map(tup => (tup._1, Tag(tup._2))),
+        trip._1._2,
+        trip._2.averageRating)
+    }))
+  }
+  def toReadBooks(env: GEnvironment): GDisjunction[List[ToReadBook]] = {
+
+    val found = toReadShelf(env)
+
+    val somethingElse: GDisjunction[List[Book]] = for {
+      l <- found
+      mappedL = l.map(tup => tup._1._1.getBook(env))
+      sequenced = mappedL.sequenceU
+      tup <- sequenced //List[Book]
+    } yield tup
+
+    val zipped = for {
+      f <- found
+      b <- somethingElse
+    } yield f.zip(b)
+
+    zipped.map(list => list.map(trip => {
+      ToReadBook(
+      trip._1._1._1,
+      trip._2.popularShelves.toList.map(tup => (Tag(tup._2), tup._1)),
+      trip._2.averageRating
+      )
+    }))
+  }
+
+  //most popular tags in the world from user's readbooks list
+  def getTopTags(rbs: List[ReadBook]): List[Tag] = {
+    val b: List[Tag] = rbs.foldRight(List.empty[Tag])((rb, b) => rb.usersTags ++ b)
+    val c = b.groupBy(identity).toList.map(tup => (tup._1, tup._2.length)).sortBy(_._2)
+
+    c.takeRight(10).map(tup => tup._1)
+  }
 }
 
-//<books start="1" end="20" total="136" numpages="7" currentpage="1">
+//todo: generate read and toread books given a user
+final case class ReadBook(simpleBook: SimpleBook,
+                          book: Book,
+                          usersTags: List[Tag],
+                          popularShelves: List[(Int, Tag)],
+                          userRating: Option[Int],
+                          averageRating: Option[Double]) {
 
-case class ReadBook(book: SimpleBook,
-                    myTags: List[String],
-                    userRating: Double,
-                    averageRating: Double,
-                    length: Option[Int],
-                    authors: List[SimpleAuthor])
+  //scores between 0 and 1
+  def measureShelfishness(l: List[Tag]): (SimpleBook, List[(Tag, Double)], Option[Int]) = {
 
-case class ToReadBook(book: SimpleBook,
-                      genres: List[String],
-                      averageRating: Option[Double],
-                      length: Option[Int],
-                      authors: List[SimpleAuthor])
+    val totalShelves = this.popularShelves.foldRight(0.0)((tup, b) => tup._1.toDouble + b)
+
+    val matchingShelves: List[(Int, Tag)] = for {
+      tag <- this.popularShelves
+      giventag <- l
+      if tag._2 == giventag
+    } yield tag
+
+    (this.simpleBook, matchingShelves.map(tup => (tup._2, tup._1.toDouble / totalShelves)), this.userRating)
+  }}
+
+final case class ToReadBook(book: SimpleBook,
+                            popularShelves: List[(Tag, Int)],
+                            averageRating: Option[Double]) {
+
+  def measureShelfishness(l: List[Tag]): (SimpleBook, List[(Tag, Double)], Option[Double]) = {
+
+    val totalShelves = this.popularShelves.foldRight(0.0)((tup, b) => tup._2 + b)
+
+    val matchingShelves: List[(Tag, Int)] = for {
+      tag <- this.popularShelves
+      giventag <- l
+      if tag._1 == giventag
+    } yield tag
+
+    (this.book, matchingShelves.map(tup => (tup._1, tup._2.toDouble / totalShelves)), this.averageRating)
+  }
+
+}
 
 object User {
 
@@ -111,6 +209,15 @@ object User {
       if (b.isEmpty) None else Some(b.text)
     }
 
-    User(userString, userId, age, gender)
+    val userShelves = {
+      val b = simpleUserString("user_shelves").\("user_shelf").\("name")
+        .toList.map(n => Tag(n.text))
+      val c = simpleUserString("user_shelves").\("user_shelf").\("book_count")
+        .toList.map(n => optionToInt(Some(n.text)))
+      if (b.isEmpty || c.isEmpty) Option.empty[List[(Option[Int], Tag)]]
+      else Some(c.zip(b))
+    }
+
+    User(userString, userId, age, gender, userShelves)
   }
 }
