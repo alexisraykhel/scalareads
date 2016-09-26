@@ -6,8 +6,6 @@ import scalaz.{-\/, \/-}
 
 object ScalareadsFunctions {
 
-//  def recommendFromToRead(readShelf: List[Book], toReadShelf: List[Book], howMany: Int): List[SimpleBook] = ???
-
   def optionToInt(o: Option[String]): Option[Int] =
     o.fold(Option.empty[Int]) { s => try {
       Some(s.toInt)

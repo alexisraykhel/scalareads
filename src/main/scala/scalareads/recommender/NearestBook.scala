@@ -1,55 +1,70 @@
 package scalareads.recommender
 
-import scalareads.{User}
-import scalareads.values.{GEnvironment, SimpleBook}
+import scalareads.User
+import scalareads.values.{IOError, GDisjunction, SimpleBook, GEnvironment}
 
-final case class NearestBook(b: SimpleBook, score: Double)
+final case class NearestBook(b: SimpleBook, predictedRating: Double)
 final case class Tag(s: String) extends AnyVal
+final case class Shelfishness(s: SimpleBook, tagsAndShelfishness: List[(Tag, Double)])
+final case class PredictedRating(r: Double)
 
 object NearestBook {
 
-  def apply(env: GEnvironment)(u: User): NearestBook = {
+  def apply(env: GEnvironment)(u: User): GDisjunction[Option[NearestBook]] = {
     for {
       r <- u.readBooks(env)
       t <- u.toReadBooks(env)
     } yield {
-      //user's most common tags
-      val topShelves = u.getTopTags(r)
-      //produces (toreadbook, List((tag, relation)), option of world average rating)
-      val testSet: List[(SimpleBook, List[(Tag, Double)], Option[Double])] = t.map(trb => trb.measureShelfishness(topShelves))
-      //produces (readbook, List((tag, relation)), user's rating)
-      val trainingSet = r.map(trb => trb.measureShelfishness(topShelves))
 
-      val listOfNearestBooks = something(testSet, trainingSet).map(tup => NearestBook(tup._2, tup._1))
-      listOfNearestBooks.foreach(println)
-      listOfNearestBooks.maxBy(nb => nb.score)
+      val toReadShelves: List[Tag] = t.flatMap(trb => trb.popularShelves.takeRight(50)).map(_._1)
+      val testSet: List[Shelfishness] = t.map(trb => {
+        trb.measureShelfishness(toReadShelves)
+      })
+      val trainingSet = r.map(trb => trb.measureShelfishness(toReadShelves))
+      val listOfNearestBooks = predictRatings(testSet, trainingSet).map(ls => NearestBook(ls._1, ls._2.r))
+      println("listOfNearest length: " + listOfNearestBooks.length)
+      println("listOfNearest 5 random: " + listOfNearestBooks.take(5))
+
+      if (listOfNearestBooks.isEmpty) Option.empty[NearestBook]
+      else Some(listOfNearestBooks.maxBy(nb => nb.predictedRating))
     }
-
-    def something(
-                   test: List[(SimpleBook, List[(Tag, Double)], Option[Double])],
-                  training: List[(SimpleBook, List[(Tag, Double)], Option[Int])]): List[List[(Double, SimpleBook)]] = {
-
-//      println("test")
-//      test.foreach(println)
-//
-//      println("train")
-//      training.foreach(println)
-
-      val b = for {
-        testTuple <- test
-        testTupleTagAndScore = testTuple._2.map(tup => (tup._1, tup._2))
-        testTupleBook = testTuple._1
-      } yield training.map(train =>
-          (unWeightedEuclideanDistance(train._2.map(_._2), testTupleTagAndScore.map(_._2)), train._1))
-
-      b
-    }
-
-    def unWeightedEuclideanDistance(predictors: List[Double], target: List[Double]): Double = {
-      val sub = predictors.zip(target).map(dd => math.pow(dd._1 - dd._2, 2))
-      math.sqrt(sub.foldRight(0.0)((num, b) => num + b))
-    }
-
-    NearestBook(SimpleBook("nope", "this sucks"), 0.0)
   }
+
+  def predictRatings(
+                 test: List[Shelfishness],
+                 training: List[Shelfishness]): List[(SimpleBook, PredictedRating)] = {
+
+    test.map(testTuple => {
+
+      val testTupleTagAndScore = testTuple.tagsAndShelfishness
+      val testTagScoreAndRating = testTupleTagAndScore.map(x => (x._2, testTuple.s.avgRating))
+
+      (testTuple.s, comparePredictorsWithTest(testTuple.s, training, testTagScoreAndRating))
+    }).map(thing => bookAndRating(thing))
+  }
+
+  def unWeightedEuclideanDistance(predictors: List[(Double, Double)], target: List[(Double, Double)]): Double = {
+    val zipped = predictors.zip(target)
+    val sub = zipped.map(dd => math.pow(dd._1._1 - dd._2._1, 2)) ++ zipped.map(dd => math.pow(dd._1._2 - dd._2._2, 2))
+    math.sqrt(sub.foldRight(0.0)((num, b) => num + b))
+  }
+
+  def bookAndRating(testAndPredictors: (SimpleBook, List[(Double, SimpleBook)])): (SimpleBook, PredictedRating) = {
+    val averageOf5ClosestRatings = {
+      testAndPredictors._2.sortBy(_._1)
+        .take(5).map(_._2.avgRating)
+        .fold(0.0)((d1, d2) => {d1 + d2}) / 5.0
+    }
+    (testAndPredictors._1, PredictedRating(averageOf5ClosestRatings))
+  }
+
+  def comparePredictorsWithTest(test: SimpleBook,
+                                training: List[Shelfishness],
+                                testTagScoreAndRating: List[(Double, Double)]): List[(Double, SimpleBook)] =
+    training.map(train => {
+      val unweightedED = unWeightedEuclideanDistance(
+        train.tagsAndShelfishness.map(x => (x._2, train.s.avgRating)), testTagScoreAndRating)
+//      println("unweightedED: " + unweightedED + " between train: " + train.s.title + " and test: " + test.title)
+      (unweightedED, train.s)
+    })
 }

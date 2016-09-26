@@ -59,8 +59,17 @@ object Author {
     val books: List[SimpleBook] = {
       val bookTitle: List[Node] = e.\("author").\("books").\("book").\("title").toList
       val bookId = e.\("author").\("books").\("book").\("id").toList
+      val bookRating: List[Double] = {
+        val maybeRating: NodeSeq = e.\("author").\("books").\("book").\("average_rating")
+        val maybes = maybeRating.map{n =>
+          try {Some(n.text.toDouble)
+          } catch
+            { case e: NumberFormatException => Option.empty[Double]}
+        }.toList
+        maybes.filterNot(_.isEmpty).map(op => op.get)
+      }
 
-      bookId.zip(bookTitle).map(tup => SimpleBook(tup._1.text, tup._2.text))
+      bookId.zip(bookTitle).zip(bookRating).map(tup => SimpleBook(tup._1._1.text, tup._1._2.text, tup._2))
     }
 
     Author(name, id, link, fansCount, authorFollowersCount, influences, worksCount, gender,

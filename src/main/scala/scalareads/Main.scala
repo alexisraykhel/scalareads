@@ -47,10 +47,12 @@ object Main extends TaskApp {
           case u@User(_,_,_,_, _) => {
             val nearest = NearestBook(ge)(u)
 
-            println(nearest)
+            nearest.fold(er => er, op =>
+              op.fold(println("You need to get some more books on your read/to-read shelves!"))(nb =>
+                println("Your nearest book is: " + nb)))
             println(u.readShelf(ge).map(l => l.length))
           }
-          case _ => println("That's nice.")
+          case _ => println("That's embarrassing.")
         })
         gresult
       }))).right[CommandLineError]

@@ -13,9 +13,7 @@ case class Book(id: String,
                 averageRating: Option[Double],
                 popularShelves: Map[Int, String],
                 originalPublicationYear: Option[Int],
-                ratingDistribution: RatingDistribution) extends GResult {
-  val getSimple = SimpleBook(this.id, this.title.fold("")(identity))
-}
+                ratingDistribution: RatingDistribution) extends GResult
 
 case class RatingDistribution(fives: Option[Int],
                               fours: Option[Int],

@@ -15,7 +15,7 @@ package object values {
   trait GResult
 
   sealed trait Simplified
-  final case class SimpleBook(id: String, title: String) extends Simplified {
+  final case class SimpleBook(id: String, title: String, avgRating: Double) extends Simplified {
     def getBook(env: GEnvironment): GDisjunction[Book] = Book(this.id)(env)
   }
   final case class SimpleAuthor(id: String, name: String) extends Simplified
