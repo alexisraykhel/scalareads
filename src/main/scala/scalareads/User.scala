@@ -1,6 +1,6 @@
 package scalareads
 
-import scalareads.recommender.{Shelfishness, Tag}
+import scalareads.recommender.{UnscaledShelfishness, Tag}
 import scalareads.values._
 import ScalareadsFunctions._
 import java.io.IOException
@@ -17,7 +17,7 @@ case class User(username: Option[String],
                 gender: Option[String],
                  tags: Option[List[(Option[Int], Tag)]]) extends GResult {
 
-  def findInShelf(env: GEnvironment)(shelf: String): GDisjunction[List[(SimpleBook, List[Tag])]] = {
+  def findInShelf(env: GEnvironment)(shelf: String): GDisjunction[List[((SimpleBook, List[Tag]), Option[Int])]] = {
     def url(page: Int): GDisjunction[Elem] =
       try {
         \/-(XML.load("https://www.goodreads.com/review/list/" +
@@ -26,18 +26,22 @@ case class User(username: Option[String],
         case i: IOException => -\/(IOError(i.toString))
       }
 
-    def simpleBookZip(e: Elem): List[(SimpleBook, List[Tag])] = {
+    def simpleBookZip(e: Elem): List[((SimpleBook, List[Tag]), Option[Int])] = {
       val bookIds: List[Node] = e.flatMap(n => n.\("reviews").\("review").\("book").\("id")).toList
       val titles = e.flatMap(n => n.\("reviews").\("review").\("book").\("title")).toList
       val userTags = e.flatMap(n => n.\("reviews").\("review").\("shelves"))
         .toList.map(n => n.\("shelf").toList)
         .map(lnds => lnds.map(n => Tag(n.\@("name"))))
-      val ratings = e.flatMap(n => n.\("reviews").\("review").\("book").\("average_rating")).map(x => optionToDouble(Some(x.text))).toList
-      val ratings2: List[Double] = ratings.map(x => x.fold(0.0)(identity))
+      val worldRatings = e.flatMap(n => n.\("reviews").\("review").\("book").\("average_rating"))
+        .map(x => optionToDouble(Some(x.text))).toList.map(x => x.fold(0.0)(identity))
+      val userRating = e.flatMap(n => n.\("reviews").\("review").\("rating")).map(n => {
+        if (n.text.isEmpty) Option.empty[Int]
+        else optionToInt(Some(n.text))
+      }).toList
 
-      bookIds.zip(titles).zip(ratings2).map(tup =>
+      bookIds.zip(titles).zip(worldRatings).map(tup =>
         SimpleBook(tup._1._1.text, tup._1._2.text, tup._2)
-      ).zip(userTags)
+      ).zip(userTags).zip(userRating)
     }
 
     def endOfList(g: GDisjunction[Elem]): Boolean =
@@ -62,8 +66,8 @@ case class User(username: Option[String],
       })
     })
 
-    val b = listOfLists.foldLeft(List.empty[(SimpleBook, List[Tag])].right[GError])(
-      (o: \/[GError, List[(SimpleBook, List[Tag])]], d: \/[GError, List[(SimpleBook, List[Tag])]]) =>
+    val b = listOfLists.foldLeft(List.empty[((SimpleBook, List[Tag]), Option[Int])].right[GError])(
+      (o: \/[GError, List[((SimpleBook, List[Tag]), Option[Int])]], d: \/[GError, List[((SimpleBook, List[Tag]), Option[Int])]]) =>
       {
         for {
           firstL <- o
@@ -77,27 +81,27 @@ case class User(username: Option[String],
   def readShelf(env: GEnvironment) = findInShelf(env)("read")
 
   def readBooks(env: GEnvironment): GDisjunction[List[ReadBook]] = {
-    val found: GDisjunction[List[(SimpleBook, List[Tag])]] = readShelf(env)
+    val found = readShelf(env)
 
     val somethingElse: GDisjunction[List[Book]] = for {
       l <- found
-      mappedL = l.map(tup => tup._1.getBook(env))
+      mappedL = l.map(tup => tup._1._1.getBook(env))
       sequenced = mappedL.sequenceU
       tup <- sequenced //List[Book]
     } yield tup
 
-    val zipped: GDisjunction[List[((SimpleBook, List[Tag]), Book)]] = for {
+    val zipped: GDisjunction[List[(((SimpleBook, List[Tag]), Option[Int]), Book)]] = for {
       f <- found
       b <- somethingElse
     } yield f.zip(b)
 
     zipped.map(list => list.map(trip => {
       ReadBook(
-        trip._1._1,
+        trip._1._1._1,
         trip._2,
-        trip._1._2,
+        trip._1._1._2,
         trip._2.popularShelves.toList.map(tup => (Tag(tup._2), tup._1)),
-        None,
+        trip._1._2,
         trip._2.averageRating)
     }))
   }
@@ -107,7 +111,7 @@ case class User(username: Option[String],
 
     val somethingElse: GDisjunction[List[Book]] = for {
       l <- found
-      mappedL = l.map(tup => tup._1.getBook(env))
+      mappedL = l.map(tup => tup._1._1.getBook(env))
       sequenced = mappedL.sequenceU
       tup <- sequenced //List[Book]
     } yield tup
@@ -119,7 +123,7 @@ case class User(username: Option[String],
 
     zipped.map(list => list.map(trip => {
       ToReadBook(
-      trip._1._1,
+      trip._1._1._1,
       trip._2.popularShelves.toList.map(tup => (Tag(tup._2), tup._1)).sortBy(tup => tup._2),
       trip._2.averageRating
       )
@@ -144,7 +148,7 @@ final case class ReadBook(simpleBook: SimpleBook,
                           averageRating: Option[Double]) {
 
   //scores between 0 and 1
-  def measureShelfishness(l: List[Tag]): Shelfishness = {{
+  def measureShelfishness(l: List[Tag]): UnscaledShelfishness = {{
 
     val totalShelves = this.popularShelves.foldRight(0.0)((tup, b) => tup._2 + b)
 
@@ -157,8 +161,8 @@ final case class ReadBook(simpleBook: SimpleBook,
 
     val allShelves = l.filter(t => matchingShelves.exists(tup => t == tup._1)).map(t => (t, 0)) ++ matchingShelves
 
-    Shelfishness(this.simpleBook,
-      allShelves.map(tup => (tup._1, tup._2.toDouble / totalShelves)).sortBy(_._1.s))
+    UnscaledShelfishness(this.simpleBook,
+      allShelves.map(tup => (tup._1, tup._2.toDouble / totalShelves)).sortBy(_._1.s).toSet)
   }
   }}
 
@@ -166,7 +170,7 @@ final case class ToReadBook(book: SimpleBook,
                             popularShelves: List[(Tag, Int)],
                             averageRating: Option[Double]) {
 
-  def measureShelfishness(l: List[Tag]): Shelfishness = {
+  def measureShelfishness(l: List[Tag]): UnscaledShelfishness = {
 
     val totalShelves = this.popularShelves.foldRight(0.0)((tup, b) => tup._2 + b)
 
@@ -179,7 +183,7 @@ final case class ToReadBook(book: SimpleBook,
 
     val allShelves = l.filter(t => matchingShelves.exists(tup => t == tup._1)).map(t => (t, 0)) ++ matchingShelves
 
-    Shelfishness(this.book, allShelves.map(tup => (tup._1, tup._2.toDouble / totalShelves)).sortBy(_._1.s))
+    UnscaledShelfishness(this.book, allShelves.map(tup => (tup._1, tup._2.toDouble / totalShelves)).sortBy(_._1.s).toSet)
   }
 
 }

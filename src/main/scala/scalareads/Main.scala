@@ -1,6 +1,6 @@
 package scalareads
 
-import scalareads.recommender.NearestBook
+import scalareads.recommender.Validator._
 import scalareads.values._
 import ScalareadsFunctions._
 import scalaz.{\/, \/-, ImmutableArray}
@@ -45,12 +45,20 @@ object Main extends TaskApp {
         val gresult = x(ge)
         gresult.map( {
           case u@User(_,_,_,_, _) => {
-            val nearest = NearestBook(ge)(u)
+            val validator = predicts(ge, u)
+//            val nearest = BookPrediction(ge)(u)
 
-            nearest.fold(er => er, op =>
-              op.fold(println("You need to get some more books on your read/to-read shelves!"))(nb =>
-                println("Your nearest book is: " + nb)))
-            println(u.readShelf(ge).map(l => l.length))
+            println("Validator: " + validator)
+
+            val x = for {
+              v <- validator
+            } yield meanSquaredError(v.toList)
+
+            println("Mean squared error: " + x)
+//            nearest.fold(er => er, op =>
+//              op.fold(println("You need to get some more books on your read/to-read shelves!"))(nb =>
+//                println("Your book with the highest predicted rating is: " + nb)))
+//            println(u.readShelf(ge).map(l => l.length))
           }
           case _ => println("That's embarrassing.")
         })
