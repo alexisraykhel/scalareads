@@ -2,7 +2,7 @@ package scalareads
 
 import scalareads.values._
 import ScalareadsFunctions._
-import java.io.IOException
+import java.io.{File, IOException}
 import scala.xml.{NodeSeq, XML, Elem}
 import scalaz.{-\/, \/-}
 
@@ -39,8 +39,10 @@ object Book {
     } catch {
       case i: IOException => -\/(IOError(i.toString))
     }
-
-    url.map(e => makeBook(e, id))
+    url.map(e => {
+//      printToFile(new File(s"/Users/araykhel/scala_practice/goodreads/src/main/resources/book_$id.txt"))(p => p.println(e))
+      makeBook(e, id)
+    })
   }
 
   private def makeBook(e: Elem, i: String): Book = {

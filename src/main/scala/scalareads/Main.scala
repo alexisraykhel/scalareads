@@ -1,5 +1,6 @@
 package scalareads
 
+import scalareads.recommender.BookPrediction
 import scalareads.recommender.Validator._
 import scalareads.values._
 import ScalareadsFunctions._
@@ -32,6 +33,7 @@ object Main extends TaskApp {
       }
       case List("--book", bookId: String) => \/-(Book(bookId)_)
       case List("--author", authorId: String) => stringToInt(authorId).map(i => Author(i)_)
+
 //      case List("--recommendToRead", userId: String) => stringToInt(userId).map(i => Recommendation(i)_)
     }
 
@@ -58,7 +60,6 @@ object Main extends TaskApp {
 //            nearest.fold(er => er, op =>
 //              op.fold(println("You need to get some more books on your read/to-read shelves!"))(nb =>
 //                println("Your book with the highest predicted rating is: " + nb)))
-//            println(u.readShelf(ge).map(l => l.length))
           }
           case _ => println("That's embarrassing.")
         })

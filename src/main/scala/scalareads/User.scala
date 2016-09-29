@@ -3,12 +3,13 @@ package scalareads
 import scalareads.recommender.{UnscaledShelfishness, Tag}
 import scalareads.values._
 import ScalareadsFunctions._
-import java.io.IOException
+import java.io.{File, IOException}
 import scala.xml.{Node, XML, Elem}
 import scalaz.{\/, -\/, \/-}
 import scalaz.syntax.either._
 import scalaz.std.list._
 import scalaz.syntax.traverse._
+import java.io
 
 
 case class User(username: Option[String], 
@@ -20,8 +21,12 @@ case class User(username: Option[String],
   def findInShelf(env: GEnvironment)(shelf: String): GDisjunction[List[((SimpleBook, List[Tag]), Option[Int])]] = {
     def url(page: Int): GDisjunction[Elem] =
       try {
-        \/-(XML.load("https://www.goodreads.com/review/list/" +
-          userId.get +".xml?key=" +  env.devKey + "&shelf=" + shelf + "&page=" + page + "&v=2"))
+        \/-{
+          XML.loadFile(s"/Users/araykhel/scala_practice/goodreads/src/main/resources/user_$shelf.txt")
+
+//        (XML.load("https://www.goodreads.com/review/list/" +
+//          userId.get +".xml?key=" +  env.devKey + "&shelf=" + shelf + "&page=" + page + "&v=2"))
+        }
       } catch {
         case i: IOException => -\/(IOError(i.toString))
       }
@@ -54,6 +59,8 @@ case class User(username: Option[String],
       val u = url(n)
       if (endOfList(u)) {
         val b = u :: es
+//        printToFile(new File(s"/Users/araykhel/scala_practice/goodreads/src/main/resources/user_$shelf.txt"))(p =>
+//          b.foreach(x => p.println(x.fold(_ => "", identity))))
         b
       }
       else getAllPages(n + 1, u :: es)

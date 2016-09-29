@@ -2,7 +2,7 @@ package scalareads
 
 import scalareads.values._
 import ScalareadsFunctions._
-import java.io.IOException
+import java.io.{File, IOException}
 import scala.xml.{Node, NodeSeq, Elem, XML}
 import scalaz._
 
@@ -33,7 +33,12 @@ object Author {
       case i: IOException => -\/(IOError(i.toString))
     }
 
-    url.map(makeAuthor)
+    url.map{ e =>
+
+//      printToFile(new File(s"/Users/araykhel/scala_practice/goodreads/src/main/resources/author_$id.txt"))(p => p.println(e))
+
+      makeAuthor(e)
+    }
   }
 
   private def makeAuthor(e: Elem): Author = {
