@@ -11,6 +11,55 @@ import scalaz.std.list._
 import scalaz.syntax.traverse._
 import java.io
 
+trait UserBook {
+
+
+  def measureShelfishness(l: List[Tag]): UnscaledShelfishness = {
+
+    val popularShelves = this match {
+      case ToReadBook(_, ps, _) => ps
+      case ReadBook(_, _, _, ps, _, _) => ps
+    }
+
+    val book = this match {
+      case ToReadBook(sb, _, _) => sb
+      case ReadBook(sb, _, _, _, _, _) => sb
+    }
+
+    val totalShelves = popularShelves.foldRight(0.0)((tup, b) => tup._2 + b)
+
+    println("length of popshelves: " + popularShelves.length)
+    println("length of given list: " + l.length)
+
+    val matchingShelves: List[(Tag, Int)] = for {
+      tag <- popularShelves
+      giventag <- l
+      if tag._1 == giventag
+    } yield {
+        println("Tag: " + tag + " matches: " + giventag)
+        tag
+      }
+
+
+    val allShelves = l.filter(t => matchingShelves.exists(tup => t == tup._1)).map(t => (t, 0)) ++ matchingShelves
+
+    UnscaledShelfishness(book, allShelves.map(tup => (tup._1, tup._2.toDouble / totalShelves)).sortBy(_._1.s))
+  }
+}
+
+//todo: generate read and toread books given a user
+final case class ReadBook(simpleBook: SimpleBook,
+                          book: Book,
+                          usersTags: List[Tag],
+                          popularShelves: List[(Tag, Int)],
+                          userRating: Option[Int],
+                          averageRating: Option[Double]) extends UserBook
+
+final case class ToReadBook(book: SimpleBook,
+                            popularShelves: List[(Tag, Int)],
+                            averageRating: Option[Double]) extends UserBook
+
+
 
 case class User(username: Option[String], 
                 userId: Option[Int],
@@ -144,55 +193,6 @@ case class User(username: Option[String],
 
     c.takeRight(10).map(tup => tup._1)
   }
-}
-
-//todo: generate read and toread books given a user
-final case class ReadBook(simpleBook: SimpleBook,
-                          book: Book,
-                          usersTags: List[Tag],
-                          popularShelves: List[(Tag, Int)],
-                          userRating: Option[Int],
-                          averageRating: Option[Double]) {
-
-  //scores between 0 and 1
-  def measureShelfishness(l: List[Tag]): UnscaledShelfishness = {{
-
-    val totalShelves = this.popularShelves.foldRight(0.0)((tup, b) => tup._2 + b)
-
-    val matchingShelves: List[(Tag, Int)] = for {
-      tag <- this.popularShelves
-      giventag <- l
-      if tag._1 == giventag
-    } yield tag
-
-
-    val allShelves = l.filter(t => matchingShelves.exists(tup => t == tup._1)).map(t => (t, 0)) ++ matchingShelves
-
-    UnscaledShelfishness(this.simpleBook,
-      allShelves.map(tup => (tup._1, tup._2.toDouble / totalShelves)).sortBy(_._1.s).toSet)
-  }
-  }}
-
-final case class ToReadBook(book: SimpleBook,
-                            popularShelves: List[(Tag, Int)],
-                            averageRating: Option[Double]) {
-
-  def measureShelfishness(l: List[Tag]): UnscaledShelfishness = {
-
-    val totalShelves = this.popularShelves.foldRight(0.0)((tup, b) => tup._2 + b)
-
-    val matchingShelves: List[(Tag, Int)] = for {
-      tag <- this.popularShelves
-      giventag <- l
-      if tag._1 == giventag
-    } yield tag
-
-
-    val allShelves = l.filter(t => matchingShelves.exists(tup => t == tup._1)).map(t => (t, 0)) ++ matchingShelves
-
-    UnscaledShelfishness(this.book, allShelves.map(tup => (tup._1, tup._2.toDouble / totalShelves)).sortBy(_._1.s).toSet)
-  }
-
 }
 
 object User {
