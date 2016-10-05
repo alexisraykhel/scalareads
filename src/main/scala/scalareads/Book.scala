@@ -35,12 +35,15 @@ object Book {
 
   def apply(id: String)(env: GEnvironment): GDisjunction[Book] = {
     val url: GDisjunction[Elem] = try {
-        \/-(XML.load("https://www.goodreads.com/book/show/" + id + ".xml?key=" + env.devKey))
+      \/-(XML.loadFile(s"/Users/araykhel/scala_practice/goodreads/src/main/resources/book_$id.txt"))
+
+//              \/-(XML.load("https://www.goodreads.com/book/show/" + id + ".xml?key=" + env.devKey))
     } catch {
       case i: IOException => -\/(IOError(i.toString))
     }
     url.map(e => {
 //      printToFile(new File(s"/Users/araykhel/scala_practice/goodreads/src/main/resources/book_$id.txt"))(p => p.println(e))
+      print(".")
       makeBook(e, id)
     })
   }

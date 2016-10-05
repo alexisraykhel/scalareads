@@ -28,18 +28,11 @@ trait UserBook {
 
     val totalShelves = popularShelves.foldRight(0.0)((tup, b) => tup._2 + b)
 
-    println("length of popshelves: " + popularShelves.length)
-    println("length of given list: " + l.length)
-
     val matchingShelves: List[(Tag, Int)] = for {
       tag <- popularShelves
       giventag <- l
       if tag._1 == giventag
-    } yield {
-        println("Tag: " + tag + " matches: " + giventag)
-        tag
-      }
-
+    } yield tag
 
     val allShelves = l.filter(t => matchingShelves.exists(tup => t == tup._1)).map(t => (t, 0)) ++ matchingShelves
 
@@ -62,7 +55,7 @@ final case class ToReadBook(book: SimpleBook,
 
 
 case class User(username: Option[String], 
-                userId: Option[Int],
+                userId: Int,
                 age: Option[Int], 
                 gender: Option[String],
                  tags: Option[List[(Option[Int], Tag)]]) extends GResult {
@@ -200,15 +193,21 @@ object User {
   def apply(id: Int)(env: GEnvironment): GDisjunction[User] = {
     val url: GDisjunction[Elem] =
       try {
-        \/-(XML.load("https://www.goodreads.com/user/show/" + id.toString + ".xml?key=" + env.devKey))
+        \/-(XML.loadFile(s"/Users/araykhel/scala_practice/goodreads/src/main/resources/user_$id.txt"))
+//        \/-(XML.load("https://www.goodreads.com/user/show/" + id.toString + ".xml?key=" + env.devKey))
       } catch {
         case i: IOException => -\/(IOError(i.toString))
       }
 
-    url.map(makeUser)
+    url.map(makeUser(id))
   }
 
-  private def makeUser(e: Elem): User = {
+  private def makeUser(id: Int)(e: Elem): User = {
+
+
+//    printToFile(new File(s"/Users/araykhel/scala_practice/goodreads/src/main/resources/user_$id.txt"))(p =>
+//      p.println(e))
+
     def simpleUserString(s: String) = e.\("user").\(s)
 
     val userString = {
@@ -240,6 +239,6 @@ object User {
       else Some(c.zip(b))
     }
 
-    User(userString, userId, age, gender, userShelves)
+    User(userString, id, age, gender, userShelves)
   }
 }

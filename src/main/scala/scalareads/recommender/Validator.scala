@@ -20,52 +20,43 @@ object Validator {
     } yield {
        val (test, train) = booksAndUserRating.splitAt(b.length/2)
 
-       val toReadShelves: List[(ReadBook, List[Tag])] = train.map(trb => (trb._1, trb._1.popularShelves.takeRight(50).map(_._1)))
+       val toReadShelves2 = {
+         val sorted50 = train.flatMap(trb => trb._1.popularShelves).groupBy(_._1).mapValues(l =>
+           l.foldRight(0)((tup, i) => tup._2 + i)).toList.sortBy(_._2).takeRight(50)
+         sorted50.foreach(println)
+         sorted50.map(_._1)
+       }
 
+       val unwantedTags = List(Tag("epic-fantasy"), Tag("fantasy-sci-fi"), Tag("default"),
+         Tag("zombies"), Tag("tolkien"), Tag("dystopia"), Tag("memoir"), Tag("urban-fantasy"),
+          Tag("literature"), Tag("novels"), Tag("contemporary"), Tag("young-adult"),
+         Tag("books-i-own"), Tag("fiction"), Tag("adventure"), Tag("audiobook"))
+
+//       toReadShelves2.foreach(t => println(t))
+      // lowest mse with unwantedTags filtered out: 1.0480689803493954
+       val toReadShelves3 = toReadShelves2.filterNot(unwantedTags.contains)
 
        //scaling based on training set
-       val minMaxes: Map[ReadBook, Map[Tag, MinMax]] = {
+       val minMaxes: Map[Tag, MinMax] = {
+         //for each read book, need to compare it to each trb's shelves; measure shelfishness compared to each one
+         val shelfishnesses: List[UnscaledShelfishness] = train.map(rb => {
+           rb._1.measureShelfishness(toReadShelves3)
+         })
+         val justTagsAndShelfishnesses = shelfishnesses.flatMap(s => s.tagsAndShelfishness)
 
-        //for each read book, need to compare it to each trb's shelves; measure shelfishness compared to each one
-        val shelfishnesses: List[(ReadBook, UnscaledShelfishness)] = train.flatMap(rb => {
-          toReadShelves.map(tup => (tup._1, rb._1.measureShelfishness(tup._2)))
-        })
-        val justTagsAndShelfishnesses = shelfishnesses.map(s => (s._1, s._2.tagsAndShelfishness))
-
-        justTagsAndShelfishnesses.map(tup => (tup._1, NearestNeighborFunctions.shelfishnessScaling(tup._2))).toMap
+         NearestNeighborFunctions.shelfishnessScaling(justTagsAndShelfishnesses)
        }
 
 
-       val testSet = {
-         //for each trb measure its shelfishness, get correct minmaxes
-
-         val mms: List[(Option[Map[Tag, MinMax]], ReadBook)] = test.map(trb => minMaxes.get(trb._1)).zip(test.map(_._1))
-         val noNones: List[(ReadBook, Map[Tag, MinMax])] = mms.map(tup => tup._1 match {
-           case None => (tup._2, Map.empty[Tag, MinMax])
-           case Some(x) => (tup._2, x)
+       val testSet =
+         test.map(trb => {
+           scaleShelfishness(trb._1.measureShelfishness(toReadShelves3), minMaxes)
          })
 
-         val unscaledShelfishnesses: List[(UnscaledShelfishness, Map[Tag, MinMax])] = noNones.map(trb => {
-           val trbTags = trb._2.toList.map(_._1)
-
-           (trb._1.measureShelfishness(trbTags), trb._2)
+       val trainSet =
+         train.map(rb => {
+           scaleShelfishness(rb._1.measureShelfishness(toReadShelves3), minMaxes)
          })
-
-         unscaledShelfishnesses.map(tup => scaleShelfishness(tup._1, tup._2))
-       }
-
-       println("validator test set: " + testSet)
-       val trainSet = {
-
-         val unscaledS: List[(UnscaledShelfishness, Map[Tag, MinMax])] = minMaxes.toList.flatMap(tup => {
-           val trbTags = tup._2.toList.map(_._1)
-
-           train.map(rb => (rb._1.measureShelfishness(trbTags), tup._2))
-         })
-
-         unscaledS.map(tup => scaleShelfishness(tup._1, tup._2))
-       }
-
 
        val predicted: List[BookPrediction] = NearestNeighborFunctions.predictRatings(testSet, trainSet)
 

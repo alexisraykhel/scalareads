@@ -20,18 +20,19 @@ object NearestNeighborFunctions {
 
   def unWeightedEuclideanDistance(predictors: List[(Double, Double)], target: List[(Double, Double)]): Double = {
     val zipped = predictors.zip(target)
-    val sub = zipped.map(dd => math.pow(dd._1._1 - dd._2._1, 2)) ++ zipped.map(dd => math.pow(((1/dd._1._2) * dd._1._2) - ((1/dd._2._2) * dd._2._2), 2))
+    val sub = zipped.map(dd => math.pow(dd._1._1 - dd._2._1, 2)) ++
+      zipped.map(dd => math.pow(((1/dd._1._2) * dd._1._2) - ((1/dd._2._2) * dd._2._2), 2))
     math.sqrt(sub.foldRight(0.0)((num, b) => num + b))
   }
 
   def bookAndRating(testAndPredictors: (SimpleBook, List[(Double, SimpleBook)])): BookPrediction = {
-    val averageOf5ClosestRatings = {
+    val averageOfXClosestRatings = {
       testAndPredictors._2.toList.sortBy(_._1)
         .take(3).map(_._2.avgRating)
         .fold(0.0)((d1, d2) => {d1 + d2}) / 3.0
     }
 
-    BookPrediction(testAndPredictors._1, averageOf5ClosestRatings)
+    BookPrediction(testAndPredictors._1, averageOfXClosestRatings)
   }
 
   def comparePredictorsWithTest(test: SimpleBook,
