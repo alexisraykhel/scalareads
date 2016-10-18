@@ -2,8 +2,9 @@ package scalareads
 
 import scalareads.values._
 import ScalareadsFunctions._
-import java.io.{File, IOException}
-import scala.xml.{NodeSeq, XML, Elem}
+import java.io.{File, FileNotFoundException, IOException, PrintWriter}
+
+import scala.xml.{Elem, NodeSeq, XML}
 import scalaz.{-\/, \/-}
 
 case class Book(id: String,
@@ -35,14 +36,19 @@ object Book {
 
   def apply(id: String)(env: GEnvironment): GDisjunction[Book] = {
     val url: GDisjunction[Elem] = try {
-      \/-(XML.loadFile(s"/Users/araykhel/scala_practice/goodreads/src/main/resources/book_$id.txt"))
-
-//              \/-(XML.load("https://www.goodreads.com/book/show/" + id + ".xml?key=" + env.devKey))
+      val where = getClass.getResource(s"/book_$id.txt").getPath
+      \/-(XML.loadFile(where))
     } catch {
-      case i: IOException => -\/(IOError(i.toString))
+      case f: FileNotFoundException => try {
+        val result = XML.load("https://www.goodreads.com/book/show/" + id + ".xml?key=" + env.devKey)
+        printToFile(new File(s"/Users/araykhel/scala_practice/goodreads/src/main/resources/book_$id.txt"))((p: PrintWriter) => p.println(result))
+        \/-(result)
+      } catch {
+        case i: IOException => -\/(IOError(i.toString))
+      }
     }
+
     url.map(e => {
-//      printToFile(new File(s"/Users/araykhel/scala_practice/goodreads/src/main/resources/book_$id.txt"))(p => p.println(e))
       print(".")
       makeBook(e, id)
     })

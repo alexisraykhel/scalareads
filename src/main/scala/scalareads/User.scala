@@ -1,58 +1,16 @@
 package scalareads
 
-import scalareads.recommender.{UnscaledShelfishness, Tag}
+import scalareads.recommender.{Tag, UnscaledShelfishness}
 import scalareads.values._
 import ScalareadsFunctions._
-import java.io.{File, IOException}
-import scala.xml.{Node, XML, Elem}
-import scalaz.{\/, -\/, \/-}
+import java.io.{File, FileNotFoundException, IOException, PrintWriter}
+
+import scala.xml.{Elem, Node, XML}
+import scalaz.{-\/, \/, \/-}
 import scalaz.syntax.either._
 import scalaz.std.list._
 import scalaz.syntax.traverse._
 import java.io
-
-trait UserBook {
-
-
-  def measureShelfishness(l: List[Tag]): UnscaledShelfishness = {
-
-    val popularShelves = this match {
-      case ToReadBook(_, ps, _) => ps
-      case ReadBook(_, _, _, ps, _, _) => ps
-    }
-
-    val book = this match {
-      case ToReadBook(sb, _, _) => sb
-      case ReadBook(sb, _, _, _, _, _) => sb
-    }
-
-    val totalShelves = popularShelves.foldRight(0.0)((tup, b) => tup._2 + b)
-
-    val matchingShelves: List[(Tag, Int)] = for {
-      tag <- popularShelves
-      giventag <- l
-      if tag._1 == giventag
-    } yield tag
-
-    val allShelves = l.filter(t => matchingShelves.exists(tup => t == tup._1)).map(t => (t, 0)) ++ matchingShelves
-
-    UnscaledShelfishness(book, allShelves.map(tup => (tup._1, tup._2.toDouble / totalShelves)).sortBy(_._1.s))
-  }
-}
-
-//todo: generate read and toread books given a user
-final case class ReadBook(simpleBook: SimpleBook,
-                          book: Book,
-                          usersTags: List[Tag],
-                          popularShelves: List[(Tag, Int)],
-                          userRating: Option[Int],
-                          averageRating: Option[Double]) extends UserBook
-
-final case class ToReadBook(book: SimpleBook,
-                            popularShelves: List[(Tag, Int)],
-                            averageRating: Option[Double]) extends UserBook
-
-
 
 case class User(username: Option[String], 
                 userId: Int,
@@ -64,13 +22,18 @@ case class User(username: Option[String],
     def url(page: Int): GDisjunction[Elem] =
       try {
         \/-{
-          XML.loadFile(s"/Users/araykhel/scala_practice/goodreads/src/main/resources/user_$shelf.txt")
-
-//        (XML.load("https://www.goodreads.com/review/list/" +
-//          userId.get +".xml?key=" +  env.devKey + "&shelf=" + shelf + "&page=" + page + "&v=2"))
+          val where = getClass.getResource(s"/user_${userId.toString}_${shelf}_$page.txt").getPath
+          XML.loadFile(where)
         }
       } catch {
-        case i: IOException => -\/(IOError(i.toString))
+        case i: FileNotFoundException => try {
+          val result = XML.load(s"https://www.goodreads.com/review/list/${userId.toString}.xml?key=${env.devKey}&shelf=$shelf&page=$page&v=2")
+          printToFile(new File(s"/Users/araykhel/scala_practice/goodreads/src/main/resources/user_${userId.toString}_${shelf}_$page.txt"))((p: PrintWriter) => p.println(result))
+
+          \/-(result)
+        } catch {
+          case i: IOException => -\/(IOError(i.toString))
+        }
       }
 
     def simpleBookZip(e: Elem): List[((SimpleBook, List[Tag]), Option[Int])] = {
@@ -99,12 +62,7 @@ case class User(username: Option[String],
 
     def getAllPages(n: Int, es: List[GDisjunction[Elem]]): List[GDisjunction[Elem]] = {
       val u = url(n)
-      if (endOfList(u)) {
-        val b = u :: es
-//        printToFile(new File(s"/Users/araykhel/scala_practice/goodreads/src/main/resources/user_$shelf.txt"))(p =>
-//          b.foreach(x => p.println(x.fold(_ => "", identity))))
-        b
-      }
+      if (endOfList(u)) u :: es
       else getAllPages(n + 1, u :: es)
     }
 
@@ -193,20 +151,23 @@ object User {
   def apply(id: Int)(env: GEnvironment): GDisjunction[User] = {
     val url: GDisjunction[Elem] =
       try {
-        \/-(XML.loadFile(s"/Users/araykhel/scala_practice/goodreads/src/main/resources/user_$id.txt"))
-//        \/-(XML.load("https://www.goodreads.com/user/show/" + id.toString + ".xml?key=" + env.devKey))
+        val where = getClass.getResource(s"/user_${id.toString}.txt").getPath
+        \/-(XML.loadFile(where))
       } catch {
-        case i: IOException => -\/(IOError(i.toString))
+        case i: FileNotFoundException => try {
+          val result = XML.load(s"https://www.goodreads.com/user/show/${id.toString}.xml?key=${env.devKey}")
+          printToFile(new File(s"/Users/araykhel/scala_practice/goodreads/src/main/resources/user_${id.toString}.txt"))((p: PrintWriter) => p.println(result))
+
+          \/-(result)
+        } catch {
+          case i: IOException => -\/(IOError(i.toString))
+        }
       }
 
     url.map(makeUser(id))
   }
 
   private def makeUser(id: Int)(e: Elem): User = {
-
-
-//    printToFile(new File(s"/Users/araykhel/scala_practice/goodreads/src/main/resources/user_$id.txt"))(p =>
-//      p.println(e))
 
     def simpleUserString(s: String) = e.\("user").\(s)
 

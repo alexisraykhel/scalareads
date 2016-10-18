@@ -55,7 +55,7 @@ object Main extends TaskApp {
 //            } yield meanSquaredError(v.toList)
 //
 //            println("\nMean squared error: " + x)
-            nearest.fold(er => er, op =>
+            nearest.fold(er => println("Error! Error!" + er.toString), op =>
               op.fold(println("You need to get some more books on your read/to-read shelves!"))(nb =>
                 println("Your book with the highest predicted rating is: " + nb)))
           }

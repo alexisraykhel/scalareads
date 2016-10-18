@@ -23,7 +23,6 @@ object BookPrediction {
       val toReadShelves: List[Tag] = {
         val sorted50 = t.flatMap(trb => trb.popularShelves).groupBy(_._1).mapValues(l =>
           l.foldRight(0)((tup, i) => tup._2 + i)).toList.sortBy(_._2).takeRight(50)
-        sorted50.foreach(println)
         sorted50.map(_._1)
       }
 
@@ -59,7 +58,9 @@ object BookPrediction {
       }
 
       val predictions =
-        NearestNeighborFunctions.predictRatings(testSet, trainingSet)
+        NearestNeighborFunctions.predictRatings(testSet, trainingSet).sortBy(bp => bp.predictedRating)
+
+      predictions.foreach(println)
 
       if (predictions.isEmpty) Option.empty[BookPrediction]
       else Some(predictions.maxBy(nb => nb.predictedRating))

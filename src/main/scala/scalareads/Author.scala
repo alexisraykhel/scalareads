@@ -2,8 +2,10 @@ package scalareads
 
 import scalareads.values._
 import ScalareadsFunctions._
-import java.io.{File, IOException}
-import scala.xml.{Node, NodeSeq, Elem, XML}
+import java.io.{File, FileNotFoundException, IOException, PrintWriter}
+import java.net.URL
+
+import scala.xml.{Elem, Node, NodeSeq, XML}
 import scalaz._
 
 case class Author(name: Option[AuthorName],
@@ -28,9 +30,19 @@ object Author {
 
   def apply(id: Int)(env: GEnvironment): GDisjunction[Author] =   {
     val url: GDisjunction[Elem] = try {
-      \/-(XML.load("https://www.goodreads.com/author/show/" + id.toString + "?format=xml&key=" + env.devKey))
+      val where = getClass.getResource(s"/author_$id.txt").getPath
+      \/-(XML.loadFile(where))
     } catch {
-      case i: IOException => -\/(IOError(i.toString))
+      case f: FileNotFoundException => try {
+        val result = XML.load("https://www.goodreads.com/author/show/" + id.toString + "?format=xml&key=" + env.devKey)
+        printToFile(new File(s"/Users/araykhel/scala_practice/goodreads/src/main/resources/author_$id.txt"))((p: PrintWriter) => p.println(result))
+
+        \/-(result)
+      } catch {
+        case i: IOException => {
+          -\/(IOError(i.toString))
+        }
+      }
     }
 
     url.map{ e =>
