@@ -18,13 +18,22 @@ object Validator {
       b <- u.readBooks(env)
       booksAndUserRating = b.map(rb => (rb, rb.userRating))
     } yield {
-       val (test, train) = booksAndUserRating.splitAt(b.length/2)
+//       val (test, train) = booksAndUserRating.splitAt(b.length/2)
 
-       val toReadShelves2 = {
-         val sorted50 = train.flatMap(trb => trb._1.popularShelves).groupBy(_._1).mapValues(l =>
+       val crossValidateTest = booksAndUserRating.sliding(5).toList
+       val crossValidateTrainAndTestIterator: List[(List[(ReadBook, Option[Int])], List[(ReadBook, Option[Int])])] =
+         crossValidateTest.map(testList => {
+           val trainList = booksAndUserRating.diff(testList)
+           (testList, trainList)
+         }
+         )
+       //booksAndUserRating.filterNot(x => crossValidateTest.contains(x))
+
+       def getListOfTagsFromToReadShelves(trainList: List[(ReadBook, Option[Int])], unwanted: List[Tag]) = {
+         val sorted50 = trainList.flatMap(trb => trb._1.popularShelves).groupBy(_._1).mapValues(l =>
            l.foldRight(0)((tup, i) => tup._2 + i)).toList.sortBy(_._2).takeRight(50)
          sorted50.foreach(println)
-         sorted50.map(_._1)
+         sorted50.map(_._1).filterNot(unwanted.contains)
        }
 
        val unwantedTags = List(Tag("epic-fantasy"), Tag("fantasy-sci-fi"), Tag("default"),
@@ -34,42 +43,102 @@ object Validator {
 
 //       toReadShelves2.foreach(t => println(t))
       // lowest mse with unwantedTags filtered out: 1.0480689803493954
-       val toReadShelves3 = toReadShelves2.filterNot(unwantedTags.contains)
+//       val toReadShelves = getListOfTagsFromToReadShelves(train, unwantedTags)
 
        //scaling based on training set
-       val minMaxes: Map[Tag, MinMax] = {
+       def minMaxes(tags: List[Tag], train: List[(ReadBook, Option[Int])]): Map[Tag, MinMax] = {
          //for each read book, need to compare it to each trb's shelves; measure shelfishness compared to each one
          val shelfishnesses: List[UnscaledShelfishness] = train.map(rb => {
-           rb._1.measureShelfishness(toReadShelves3)
+           rb._1.measureShelfishness(tags)
          })
          val justTagsAndShelfishnesses = shelfishnesses.flatMap(s => s.tagsAndShelfishness)
 
          NearestNeighborFunctions.shelfishnessScaling(justTagsAndShelfishnesses)
        }
 
-
-       val testSet =
-         test.map(trb => {
-           scaleShelfishness(trb._1.measureShelfishness(toReadShelves3), minMaxes)
+       def localScaling(list: List[(ReadBook, Option[Int])], tags: List[Tag]) =
+         list.map(t => {
+           scaleShelfishness(t._1.measureShelfishness(tags), minMaxes(tags, list))
          })
 
-       val trainSet =
-         train.map(rb => {
-           scaleShelfishness(rb._1.measureShelfishness(toReadShelves3), minMaxes)
+       val crossValidatingTestAndTrain = {
+         crossValidateTrainAndTestIterator.flatMap(x => {
+           val validatingTest = x._1
+           println("validatingTest length: " + validatingTest.size)
+           val validatingTrain = x._2
+           println("validatingTrain length: " + validatingTrain.size)
+           val tags = getListOfTagsFromToReadShelves(validatingTrain, unwantedTags)
+           println("tags length: " + tags.size)
+           val validatingTestSet = localScaling(validatingTest, tags)
+           println("validatingTestSet length: " + validatingTestSet.size)
+           val validatingTrainSet = localScaling(validatingTrain, tags)
+           println("validatingTrainSet length: " + validatingTrainSet.size)
+           val predicted = NearestNeighborFunctions.predictRatings(validatingTestSet, validatingTrainSet)
+           println("predicted length: " + predicted.size)
+
+           for {
+             p <- {
+               println("predicted: " + predicted.size)
+               predicted
+             }
+             t <- {
+               println("validatingtest: " + validatingTest.size)
+               validatingTest
+             }
+            q = {
+              println("p: " + p)
+              println("t._1.simpleBook: " + t._1.simpleBook)
+            }
+           _ <- List(q)
+           r = println(p.b == t._1.simpleBook)
+           _ <- List(r)
+             if p.b == t._1.simpleBook
+           } yield ValidatorPredictions(p, t._2)
          })
+       }
 
-       val predicted: List[BookPrediction] = NearestNeighborFunctions.predictRatings(testSet, trainSet)
 
-       for {
-         p <- predicted
-         t <- test
-         if p.b == t._1.simpleBook
-       } yield ValidatorPredictions(p, t._2)
+//       val testSet: List[ScaledShelfishness] = localScaling(test)
+//
+//       val trainSet = localScaling(train)
+
+//       val predicted: List[BookPrediction] = NearestNeighborFunctions.predictRatings(testSet, trainSet)
+//
+//       for {
+//         p <- predicted
+//         t <- test
+//         if p.b == t._1.simpleBook
+//       } yield ValidatorPredictions(p, t._2)
+
+       println("FLSDKJLSDKJC!")
+       crossValidatingTestAndTrain.map(vp => {
+         println("holy crap: " + vp)
+         vp
+       })
+       println("crossValidatingTestAndTrain size: " + crossValidatingTestAndTrain.size)
+       val b = crossValidatingTestAndTrain.toList
+       println("b: " + b.size)
+       b
     }
   }
 
   def meanSquaredError(ps: List[ValidatorPredictions]) = {
-    val filtered = ps.filter(vp => vp.actualUserRating.nonEmpty).map(vp => (vp.b, vp.actualUserRating.get))
-    math.sqrt(filtered.map(vp => math.pow(vp._2.toDouble - vp._1.predictedRating, 2)).fold(0.0)((a, b) => a + b)/filtered.length)
+    println("mean squared error")
+    println("ps: " + ps)
+    val filtered = ps.filter(vp => {
+      println("vp: " + vp)
+      vp.actualUserRating.nonEmpty
+    }).map(vp => {
+      println("userrating: " + vp.actualUserRating)
+      println("book prediction: " + vp.b)
+      (vp.b, vp.actualUserRating.get)
+    })
+    println("filtered: " + filtered)
+    math.sqrt(filtered.map(vp => {
+      println("vp inside sqrt: " + vp)
+      val pow = math.pow(vp._2.toDouble - vp._1.predictedRating, 2)
+      println("pow: " + pow)
+      pow
+    }).fold(0.0)((a, b) => a + b)/filtered.length)
   }
 }

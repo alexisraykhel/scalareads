@@ -47,17 +47,18 @@ object Main extends TaskApp {
         val gresult = x(ge)
         gresult.map( {
           case u@User(_,_,_,_, _) => {
-//            val validator = predicts(ge, u)
-            val nearest = BookPrediction(ge)(u)
+            val validator = predicts(ge, u)
+            println("validator: " + validator)
+//            val nearest = BookPrediction(ge)(u)
 
-//            val x = for {
-//              v <- validator
-//            } yield meanSquaredError(v.toList)
-//
-//            println("\nMean squared error: " + x)
-            nearest.fold(er => println("Error! Error!" + er.toString), op =>
-              op.fold(println("You need to get some more books on your read/to-read shelves!"))(nb =>
-                println("Your book with the highest predicted rating is: " + nb)))
+            val x = for {
+              v <- validator
+            } yield meanSquaredError(v)
+
+            println("\nMean squared error: " + x)
+//            nearest.fold(er => println("Error! Error!" + er.toString), op =>
+//              op.fold(println("You need to get some more books on your read/to-read shelves!"))(nb =>
+//                println("Your book with the highest predicted rating is: " + nb)))
           }
           case _ => println("That's embarrassing.")
         })
