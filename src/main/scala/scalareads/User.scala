@@ -22,13 +22,12 @@ case class User(username: Option[String],
     def url(page: Int): GDisjunction[Elem] =
       try {
         \/-{
-          val where = getClass.getResource(s"/user_${userId.toString}_${shelf}_$page.txt").getPath
-          XML.loadFile(where)
+          XML.loadFile(getClass.getResource(s"/user_${userId.toString}_${shelf}_$page.txt").getPath)
         }
       } catch {
-        case i: FileNotFoundException => try {
+        case i: NullPointerException => try {
           val result = XML.load(s"https://www.goodreads.com/review/list/${userId.toString}.xml?key=${env.devKey}&shelf=$shelf&page=$page&v=2")
-          printToFile(new File(s"/Users/araykhel/scala_practice/goodreads/src/main/resources/user_${userId.toString}_${shelf}_$page.txt"))((p: PrintWriter) => p.println(result))
+          printToFile(new File(s"${env.resourcesPathWithEndSlash}user_${userId.toString}_${shelf}_$page.txt"))((p: PrintWriter) => p.println(result))
 
           \/-(result)
         } catch {
@@ -149,20 +148,20 @@ case class User(username: Option[String],
 object User {
 
   def apply(id: Int)(env: GEnvironment): GDisjunction[User] = {
-    val url: GDisjunction[Elem] =
+    val url: GDisjunction[Elem] = {
       try {
-        val where = getClass.getResource(s"/user_${id.toString}.txt").getPath
-        \/-(XML.loadFile(where))
+        \/-(XML.loadFile(getClass.getResource(s"/user_${id.toString}.txt").getPath))
       } catch {
-        case i: FileNotFoundException => try {
+        case i: NullPointerException => try {
           val result = XML.load(s"https://www.goodreads.com/user/show/${id.toString}.xml?key=${env.devKey}")
-          printToFile(new File(s"/Users/araykhel/scala_practice/goodreads/src/main/resources/user_${id.toString}.txt"))((p: PrintWriter) => p.println(result))
+          printToFile(new File(s"${env.resourcesPathWithEndSlash}user_${id.toString}.txt"))((p: PrintWriter) => p.println(result))
 
           \/-(result)
         } catch {
           case i: IOException => -\/(IOError(i.toString))
         }
       }
+    }
 
     url.map(makeUser(id))
   }

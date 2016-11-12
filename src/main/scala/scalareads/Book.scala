@@ -36,12 +36,11 @@ object Book {
 
   def apply(id: String)(env: GEnvironment): GDisjunction[Book] = {
     val url: GDisjunction[Elem] = try {
-      val where = getClass.getResource(s"/book_$id.txt").getPath
-      \/-(XML.loadFile(where))
+      \/-(XML.loadFile(getClass.getResource(s"/book_$id.txt").getPath))
     } catch {
-      case f: FileNotFoundException => try {
+      case f: NullPointerException => try {
         val result = XML.load("https://www.goodreads.com/book/show/" + id + ".xml?key=" + env.devKey)
-        printToFile(new File(s"/Users/araykhel/scala_practice/goodreads/src/main/resources/book_$id.txt"))((p: PrintWriter) => p.println(result))
+        printToFile(new File(s"${env.resourcesPathWithEndSlash}book_$id.txt"))((p: PrintWriter) => p.println(result))
         \/-(result)
       } catch {
         case i: IOException => -\/(IOError(i.toString))

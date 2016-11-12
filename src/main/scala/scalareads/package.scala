@@ -9,7 +9,7 @@ package object values {
   type GReader[A] = Reader[GEnvironment, A]
   type KeyAndResult = (GEnvironment, List[GDisjunction[GResult]])
 
-  final case class GEnvironment(devKey: String) extends AnyVal
+  final case class GEnvironment(devKey: String, resourcesPathWithEndSlash: String)
 
   //Author, Book, User all extend GResult
   trait GResult

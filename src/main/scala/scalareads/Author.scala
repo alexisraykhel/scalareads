@@ -35,7 +35,7 @@ object Author {
     } catch {
       case f: FileNotFoundException => try {
         val result = XML.load("https://www.goodreads.com/author/show/" + id.toString + "?format=xml&key=" + env.devKey)
-        printToFile(new File(s"/Users/araykhel/scala_practice/goodreads/src/main/resources/author_$id.txt"))((p: PrintWriter) => p.println(result))
+        printToFile(new File(s"${env.resourcesPathWithEndSlash}author_$id.txt"))((p: PrintWriter) => p.println(result))
 
         \/-(result)
       } catch {
@@ -45,12 +45,7 @@ object Author {
       }
     }
 
-    url.map{ e =>
-
-//      printToFile(new File(s"/Users/araykhel/scala_practice/goodreads/src/main/resources/author_$id.txt"))(p => p.println(e))
-
-      makeAuthor(e)
-    }
+    url.map(makeAuthor)
   }
 
   private def makeAuthor(e: Elem): Author = {

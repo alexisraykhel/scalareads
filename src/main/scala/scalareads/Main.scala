@@ -20,25 +20,19 @@ object Main extends TaskApp {
 
   val usage =
     """
-      |Expected usage: scalareads [--user id] [--book id] [--author id] --devkey string
+      |Expected usage: scalareads [--user id] [--book id] [--author id] --devkey string --pathToResources string
     """.stripMargin
 
   private def commandLineParse(l: List[String]): GDisjunction[KeyAndResult] = {
 
     val b: List[\/[GError, (GEnvironment) => \/[GError, GResult]]] = l.sliding(2,1).toList.collect {
-      case List("--user", userId: String) => {
-
-        val c: \/[GError, (GEnvironment) => GDisjunction[User]] = stringToInt(userId).map(i => User(i)_)
-        c
-      }
+      case List("--user", userId: String) => stringToInt(userId).map(User(_)_)
       case List("--book", bookId: String) => \/-(Book(bookId)_)
       case List("--author", authorId: String) => stringToInt(authorId).map(i => Author(i)_)
-
-//      case List("--recommendToRead", userId: String) => stringToInt(userId).map(i => Recommendation(i)_)
     }
 
-    val d: Option[GEnvironment] = l.sliding(2, 1).toList.collect {
-      case List("--devkey", string: String) => GEnvironment(string)
+    val d: Option[GEnvironment] = l.sliding(4, 1).toList.collect {
+      case List("--devkey", devKey: String, "--pathToResources", path: String) => GEnvironment(devKey, path)
     }.headOption
 
 
@@ -49,16 +43,16 @@ object Main extends TaskApp {
           case u@User(_,_,_,_, _) => {
             val validator = predicts(ge, u)
             println("validator: " + validator)
-//            val nearest = BookPrediction(ge)(u)
+            val nearest = BookPrediction(ge)(u)
 
             val x = for {
               v <- validator
             } yield meanSquaredError(v)
 
             println("\nMean squared error: " + x)
-//            nearest.fold(er => println("Error! Error!" + er.toString), op =>
-//              op.fold(println("You need to get some more books on your read/to-read shelves!"))(nb =>
-//                println("Your book with the highest predicted rating is: " + nb)))
+            nearest.fold(er => println("Error! Error!" + er.toString), op =>
+              op.fold(println("You need to get some more books on your read/to-read shelves!"))(nb =>
+                println("Your book with the highest predicted rating is: " + nb)))
           }
           case _ => println("That's embarrassing.")
         })

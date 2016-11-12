@@ -41,7 +41,6 @@ object NearestNeighborFunctions {
     training.map(train => {
       val unweightedED = unWeightedEuclideanDistance(
         train.tagsAndScaledShelf.map(x => (x._2, train.s.avgRating)), testTagScoreAndRating)
-      //      println("unweightedED: " + unweightedED + " between train: " + train.s.title + " and test: " + test.title)
       (unweightedED, train.s)
     })
 
