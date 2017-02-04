@@ -53,8 +53,6 @@ object BookPrediction {
       val predictions =
         NearestNeighborFunctions.predictRatings(testSet, trainingSet).sortBy(bp => bp.predictedRating)
 
-      predictions.foreach(println)
-
       if (predictions.isEmpty) Option.empty[BookPrediction]
       else Some(predictions.maxBy(nb => nb.predictedRating))
     }

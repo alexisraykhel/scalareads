@@ -1,6 +1,9 @@
 package scalareads
 
-import scalaz.{\/, Reader}
+import argonaut.EncodeJson
+import org.http4s.Request
+
+import scalaz.{Reader, \/}
 
 
 package object values {
@@ -25,5 +28,13 @@ package object values {
   final case class IOError(m: String) extends GError
   final case class ToIntError(m: String) extends GError
   final case class CommandLineError(m: String) extends GError
+
+  object SimpleBook {
+    implicit def sbEncodeJson: EncodeJson[SimpleBook] =
+      EncodeJson.jencode3L[SimpleBook, String, String, Double]((sb: SimpleBook) =>
+        (sb.id, sb.title, sb.avgRating))("bookID", "bookTitle", "avgRating")
+  }
+
+  final case class AuthorRequest(req: Request)(authorId: String, g: GEnvironment)
 
 }

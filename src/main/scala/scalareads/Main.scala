@@ -42,7 +42,8 @@ object Main extends TaskApp {
         gresult.map( {
           case u@User(_,_,_,_, _) => {
             val validator = predicts(ge, u)
-            println("validator: " + validator)
+            println("validator predictions")
+            validator.foreach(println)
             val nearest = BookPrediction(ge)(u)
 
             val x = for {

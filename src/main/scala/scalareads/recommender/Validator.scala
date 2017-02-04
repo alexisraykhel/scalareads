@@ -18,7 +18,6 @@ object Validator {
       b <- u.readBooks(env)
       booksAndUserRating = b.map(rb => (rb, rb.userRating))
     } yield {
-//       val (test, train) = booksAndUserRating.splitAt(b.length/2)
 
        val crossValidateTest = booksAndUserRating.sliding(5).toList
        val crossValidateTrainAndTestIterator: List[(List[(ReadBook, Option[Int])], List[(ReadBook, Option[Int])])] =
@@ -27,12 +26,10 @@ object Validator {
            (testList, trainList)
          }
          )
-       //booksAndUserRating.filterNot(x => crossValidateTest.contains(x))
 
        def getListOfTagsFromToReadShelves(trainList: List[(ReadBook, Option[Int])], unwanted: List[Tag]) = {
          val sorted50 = trainList.flatMap(trb => trb._1.popularShelves).groupBy(_._1).mapValues(l =>
            l.foldRight(0)((tup, i) => tup._2 + i)).toList.sortBy(_._2).takeRight(50)
-         sorted50.foreach(println)
          sorted50.map(_._1).filterNot(unwanted.contains)
        }
 
@@ -40,10 +37,6 @@ object Validator {
          Tag("zombies"), Tag("tolkien"), Tag("dystopia"), Tag("memoir"), Tag("urban-fantasy"),
           Tag("literature"), Tag("novels"), Tag("contemporary"), Tag("young-adult"),
          Tag("books-i-own"), Tag("fiction"), Tag("adventure"), Tag("audiobook"))
-
-//       toReadShelves2.foreach(t => println(t))
-      // lowest mse with unwantedTags filtered out: 1.0480689803493954
-//       val toReadShelves = getListOfTagsFromToReadShelves(train, unwantedTags)
 
        //scaling based on training set
        def minMaxes(tags: List[Tag], train: List[(ReadBook, Option[Int])]): Map[Tag, MinMax] = {
@@ -73,8 +66,6 @@ object Validator {
            for {
              p <- predicted
              t <- validatingTest
-           r = println(p.b == t._1.simpleBook)
-           _ <- List(r)
              if p.b == t._1.simpleBook
            } yield ValidatorPredictions(p, t._2)
          })
@@ -85,7 +76,10 @@ object Validator {
 
   def meanSquaredError(ps: List[ValidatorPredictions]) = {
 
-    val filtered = ps.filter(vp => vp.actualUserRating.nonEmpty).map(vp => (vp.b, vp.actualUserRating.get))
-    math.sqrt(filtered.map(vp => math.pow(vp._2.toDouble - vp._1.predictedRating, 2)).fold(0.0)((a, b) => a + b)/filtered.length)
+    val filtered = ps.filter(vp => vp.actualUserRating.nonEmpty).map(vp =>
+      (vp.b, vp.actualUserRating.get))
+
+    math.sqrt(filtered.map(vp =>
+      math.pow(vp._2.toDouble - vp._1.predictedRating, 2)).fold(0.0)((a, b) => a + b)/filtered.length)
   }
 }

@@ -5,6 +5,8 @@ import ScalareadsFunctions._
 import java.io.{File, FileNotFoundException, IOException, PrintWriter}
 import java.net.URL
 
+import argonaut.EncodeJson
+
 import scala.xml.{Elem, Node, NodeSeq, XML}
 import scalaz._
 
@@ -23,8 +25,20 @@ case class Author(name: Option[AuthorName],
                   works: List[SimpleBook]) extends GResult
 
 case class AuthorName(v: String) extends AnyVal
-case class AuthorID(v: Int) extends AnyVal
-case class Link(v: String) extends AnyVal
+
+object AuthorName {
+  implicit def authorNameEncodeJson: EncodeJson[AuthorName] =
+    EncodeJson.jencode1L((an: AuthorName) => an.v)("authorName")
+}
+
+case class AuthorID(v: Int) extends AnyVal {
+  implicit def authorIdEncodeJson: EncodeJson[AuthorID] =
+    EncodeJson.jencode1L((a: AuthorID) => a.v)("authorID")
+}
+case class Link(v: String) extends AnyVal {
+  implicit def linkEncodeJson: EncodeJson[Link] =
+    EncodeJson.jencode1L((l: Link) => l.v)("url")
+}
 
 object Author {
 
@@ -87,4 +101,12 @@ object Author {
     Author(name, id, link, fansCount, authorFollowersCount, influences, worksCount, gender,
       hometown, bornAt, diedAt, goodreadsAuthor, books)
     }
+
+  implicit def authorEncodeJson: EncodeJson[Author] =
+    EncodeJson.jencode13L[Author, Option[AuthorName], Option[AuthorID], Option[Link],
+      Option[Int], Option[Int], Option[String], Option[Int], Option[String], Option[String],
+      Option[String], Option[String], Option[Boolean], List[SimpleBook]]((a: Author) => (a.name, a.id,
+    a.link, a.fansCount, a.authorFollowersCount, a.influences, a.worksCount, a.gender, a.hometown, a.bornAt,
+    a.diedAt, a.goodreadsAuthor, a.works))("name", "id", "link", "fansCount", "followersCount", "influences",
+    "worksCount", "gender", "hometown", "bornAt", "diedAt", "goodreadsAuthor", "works")
 }
