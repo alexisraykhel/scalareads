@@ -1,8 +1,9 @@
-package scalareads
+package scalareads.general
+
 
 import scalareads.recommender.{Tag, UnscaledShelfishness}
 import scalareads.values._
-import ScalareadsFunctions._
+import scalareads.ScalareadsFunctions._
 import java.io.{File, FileNotFoundException, IOException, PrintWriter}
 
 import scala.xml.{Elem, Node, XML}
@@ -12,22 +13,28 @@ import scalaz.std.list._
 import scalaz.syntax.traverse._
 import java.io
 
-case class User(username: Option[String], 
-                userId: Int,
-                age: Option[Int], 
-                gender: Option[String],
-                 tags: Option[List[(Option[Int], Tag)]]) extends GResult {
 
-  def findInShelf(env: GEnvironment)(shelf: String): GDisjunction[List[((SimpleBook, List[Tag]), Option[Int])]] = {
+case class User(username: Option[String],
+                userId: Int,
+                age: Option[Int],
+                gender: Option[String],
+                tags: Option[List[(Option[Int], Tag)]]) extends GResult {
+
+  def findInShelf(env: GEnvironment)(shelf: String) = {
     def url(page: Int): GDisjunction[Elem] =
       try {
         \/-{
-          XML.loadFile(getClass.getResource(s"/user_${userId.toString}_${shelf}_$page.txt").getPath)
+          XML.loadFile(getClass.getResource(s"""/user_${userId.toString}
+            _${shelf}_$page.txt""").getPath)
         }
       } catch {
         case i: NullPointerException => try {
-          val result = XML.load(s"https://www.goodreads.com/review/list/${userId.toString}.xml?key=${env.devKey}&shelf=$shelf&page=$page&v=2")
-          printToFile(new File(s"${env.resourcesPathWithEndSlash}user_${userId.toString}_${shelf}_$page.txt"))((p: PrintWriter) => p.println(result))
+          val result = XML.load(s"""https://www.goodreads.com/review/list/
+            ${userId.toString}.xml?key
+            env.devKey}&shelf=$shelf&page=$page&v=2""")
+          printToFile(new File(s"""${env.resourcesPathWithEndSlash}
+            user_${userId.toString}_
+            ${shelf}_$page.txt"""))((p: PrintWriter) => p.println(result))
 
           \/-(result)
         } catch {
@@ -36,14 +43,19 @@ case class User(username: Option[String],
       }
 
     def simpleBookZip(e: Elem): List[((SimpleBook, List[Tag]), Option[Int])] = {
-      val bookIds: List[Node] = e.flatMap(n => n.\("reviews").\("review").\("book").\("id")).toList
-      val titles = e.flatMap(n => n.\("reviews").\("review").\("book").\("title")).toList
-      val userTags = e.flatMap(n => n.\("reviews").\("review").\("shelves"))
+      val bookIds = e.flatMap(_.\("reviews")
+        .\("review").\("book").\("id")).toList
+      val titles = e.flatMap(_.\("reviews")
+        .\("review").\("book").\("title")).toList
+      val userTags = e.flatMap(_.\("reviews").\("review").\("shelves"))
         .toList.map(n => n.\("shelf").toList)
-        .map(lnds => lnds.map(n => Tag(n.\@("name"))))
-      val worldRatings = e.flatMap(n => n.\("reviews").\("review").\("book").\("average_rating"))
-        .map(x => optionToDouble(Some(x.text))).toList.map(x => x.fold(0.0)(identity))
-      val userRating = e.flatMap(n => n.\("reviews").\("review").\("rating")).map(n => {
+        .map(_.map(s => Tag(s.\@("name"))))
+      val worldRatings = e.flatMap(_.\("reviews")
+        .\("review").\("book").\("average_rating"))
+        .map(x => optionToDouble(Some(x.text)))
+        .toList.map(_.fold(0.0)(identity))
+      val userRating = e.flatMap(_.\("reviews")
+        .\("review").\("rating")).map(n => {
         if (n.text.isEmpty) Option.empty[Int]
         else optionToInt(Some(n.text))
       }).toList
@@ -65,12 +77,7 @@ case class User(username: Option[String],
       else getAllPages(n + 1, u :: es)
     }
 
-    val listOfLists = getAllPages(1, List.empty).map(gdisj => {
-      gdisj.map(s => {
-        val simp = simpleBookZip(s)
-        simp
-      })
-    })
+    val listOfLists = getAllPages(1, List.empty).map(_.map(simpleBookZip(_)))
 
     val b = listOfLists.foldLeft(List.empty[((SimpleBook, List[Tag]), Option[Int])].right[GError])(
       (o: \/[GError, List[((SimpleBook, List[Tag]), Option[Int])]], d: \/[GError, List[((SimpleBook, List[Tag]), Option[Int])]]) =>

@@ -1,5 +1,7 @@
 package scalareads
 
+
+import scalareads.general._
 import scalareads.recommender.BookPrediction
 import scalareads.recommender.Validator._
 import scalareads.values._
@@ -8,6 +10,7 @@ import scalaz.{\/, \/-, ImmutableArray}
 import scalaz.concurrent.{Task, TaskApp}
 import scalaz.syntax.traverse._
 import scalaz.syntax.either._
+
 
 object Main extends TaskApp {
 
@@ -20,23 +23,29 @@ object Main extends TaskApp {
 
   val usage =
     """
-      |Expected usage: scalareads [--user id] [--book id] [--author id] --devkey string --pathToResources string
+      |Expected usage: scalareads [--user id] [--book id]
+      [--author id] --devkey string --pathToResources string
     """.stripMargin
 
-  private def commandLineParse(l: List[String]): GDisjunction[KeyAndResult] = {
+  private def commandLineParse(l: List[String]) = {
 
-    val b: List[\/[GError, (GEnvironment) => \/[GError, GResult]]] = l.sliding(2,1).toList.collect {
-      case List("--user", userId: String) => stringToInt(userId).map(User(_)_)
-      case List("--book", bookId: String) => \/-(Book(bookId)_)
-      case List("--author", authorId: String) => stringToInt(authorId).map(i => Author(i)_)
+    val b = l.sliding(2,1).toList.collect {
+      case List("--user", userId: String) =>
+        stringToInt(userId).map(User(_)_)
+      case List("--book", bookId: String) =>
+        \/-(Book(bookId)_)
+      case List("--author", authorId: String) =>
+        stringToInt(authorId).map(i => Author(i)_)
     }
 
-    val d: Option[GEnvironment] = l.sliding(4, 1).toList.collect {
-      case List("--devkey", devKey: String, "--pathToResources", path: String) => GEnvironment(devKey, path)
+    val d = l.sliding(4, 1).toList.collect {
+      case List("--devkey", devKey: String, "--pathToResources", path: String) =>
+        GEnvironment(devKey, path)
     }.headOption
 
 
-    d.fold(CommandLineError("No developer key found.").left[KeyAndResult])(ge => {
+    d.fold(CommandLineError("""Dev key and path to resources
+      folder must be provided.""").left[KeyAndResult])(ge => {
       (ge, b.map(disjs => disjs.flatMap(x => {
         val gresult = x(ge)
         gresult.map( {
@@ -52,8 +61,10 @@ object Main extends TaskApp {
 
             println("\nMean squared error: " + x)
             nearest.fold(er => println("Error! Error!" + er.toString), op =>
-              op.fold(println("You need to get some more books on your read/to-read shelves!"))(nb =>
-                println("Your book with the highest predicted rating is: " + nb)))
+              op.fold(println("""You need to get some more books
+                on your read/to-read shelves!"""))(nb =>
+                println("""Your book with the highest
+                  predicted rating is: """ + nb)))
           }
           case _ => println("That's embarrassing.")
         })

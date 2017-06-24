@@ -1,5 +1,6 @@
 package scalareads
 
+
 import scalareads.values.{GDisjunction, ToIntError, SimpleBook}
 import scalaz.{-\/, \/-}
 
@@ -13,12 +14,13 @@ object ScalareadsFunctions {
     catch {
       case e: NumberFormatException => Option.empty[Int]
     }
-    }
+  }
 
   def stringToInt(s: String): GDisjunction[Int] = try {
     \/-(s.toInt)
   } catch {
-    case e: NumberFormatException => -\/(ToIntError(s + " is not a valid integer. " + e.getMessage))
+    case e: NumberFormatException => -\/(ToIntError(s +
+      " is not a valid integer. " + e.getMessage))
   }
 
   def optionToDouble(o: Option[String]): Option[Double] =
@@ -27,7 +29,7 @@ object ScalareadsFunctions {
     } catch {
       case e: NumberFormatException => Option.empty[Double]
     }
-    )
+  )
 
   def toMaybeBoolean(os: Option[String]): Option[Boolean] =
     os.fold(Option.empty[Boolean])(s =>

@@ -1,8 +1,10 @@
 package scalareads.recommender
 
-import scalareads.{ReadBook, ToReadBook, User}
+
+import scalareads.general.{ReadBook, ToReadBook, User}
 import scalareads.values.GEnvironment
 import NearestNeighborFunctions._
+import scalareads.general.UserBook.measureShelfishness
 
 /**
  * Create a validator for recommender.
@@ -11,7 +13,8 @@ import NearestNeighborFunctions._
 
 object Validator {
 
-  case class ValidatorPredictions(b: BookPrediction, actualUserRating: Option[Int])
+  case class ValidatorPredictions(b: BookPrediction,
+                                  actualUserRating: Option[Int])
 
   val predicts = (env: GEnvironment, u: User) => {
      for {
@@ -20,16 +23,18 @@ object Validator {
     } yield {
 
        val crossValidateTest = booksAndUserRating.sliding(5).toList
-       val crossValidateTrainAndTestIterator: List[(List[(ReadBook, Option[Int])], List[(ReadBook, Option[Int])])] =
+       val crossValidateTrainAndTestIterator =
          crossValidateTest.map(testList => {
            val trainList = booksAndUserRating.diff(testList)
            (testList, trainList)
-         }
-         )
+         })
 
-       def getListOfTagsFromToReadShelves(trainList: List[(ReadBook, Option[Int])], unwanted: List[Tag]) = {
-         val sorted50 = trainList.flatMap(trb => trb._1.popularShelves).groupBy(_._1).mapValues(l =>
-           l.foldRight(0)((tup, i) => tup._2 + i)).toList.sortBy(_._2).takeRight(50)
+       def tagsFromTRShelves(trainList: List[(ReadBook, Option[Int])],
+                                          unwanted: List[Tag]) = {
+         val sorted50 = trainList.flatMap(_._1.popularShelves)
+          .groupBy(_._1).mapValues(_.foldRight(0)((tup, i) => tup._2 + i))
+          .toList.sortBy(_._2).takeRight(50)
+
          sorted50.map(_._1).filterNot(unwanted.contains)
        }
 
@@ -39,26 +44,28 @@ object Validator {
          Tag("books-i-own"), Tag("fiction"), Tag("adventure"), Tag("audiobook"))
 
        //scaling based on training set
-       def minMaxes(tags: List[Tag], train: List[(ReadBook, Option[Int])]): Map[Tag, MinMax] = {
-         //for each read book, need to compare it to each trb's shelves; measure shelfishness compared to each one
-         val shelfishnesses: List[UnscaledShelfishness] = train.map(rb => {
-           rb._1.measureShelfishness(tags)
-         })
-         val justTagsAndShelfishnesses = shelfishnesses.flatMap(s => s.tagsAndShelfishness)
+       def minMaxes(tags: List[Tag],
+                    train: List[(ReadBook, Option[Int])]): Map[Tag, MinMax] = {
+         // for each read book, need to compare it to each trb's shelves;
+         // measure shelfishness compared to each one
+         val shelfishnesses: List[UnscaledShelfishness] = train.map(rb =>
+           measureShelfishness(rb._1, tags))
+         val justTagsAndShelfishnesses = shelfishnesses
+          .flatMap(_.tagsAndShelfishness)
 
          NearestNeighborFunctions.shelfishnessScaling(justTagsAndShelfishnesses)
        }
 
-       def localScaling(list: List[(ReadBook, Option[Int])], tags: List[Tag]) =
-         list.map(t => {
-           scaleShelfishness(t._1.measureShelfishness(tags), minMaxes(tags, list))
-         })
+       def localScaling(list: List[(ReadBook, Option[Int])],
+                        tags: List[Tag]) =
+         list.map(t => scaleShelfishness(measureShelfishness(t._1, tags),
+          minMaxes(tags, list)))
 
        val crossValidatingTestAndTrain = {
          crossValidateTrainAndTestIterator.flatMap(x => {
            val validatingTest = x._1
            val validatingTrain = x._2
-           val tags = getListOfTagsFromToReadShelves(validatingTrain, unwantedTags)
+           val tags = tagsFromTRShelves(validatingTrain, unwantedTags)
            val validatingTestSet = localScaling(validatingTest, tags)
            val validatingTrainSet = localScaling(validatingTrain, tags)
            val predicted = NearestNeighborFunctions.predictRatings(validatingTestSet, validatingTrainSet)
@@ -66,7 +73,7 @@ object Validator {
            for {
              p <- predicted
              t <- validatingTest
-             if p.b == t._1.simpleBook
+             if p.b == t._1.sb
            } yield ValidatorPredictions(p, t._2)
          })
        }

@@ -5,12 +5,10 @@ import scalareads.values.SimpleBook
 
 object NearestNeighborFunctions {
 
-  def predictRatings(
-                      test: List[ScaledShelfishness],
-                      training: List[ScaledShelfishness]): List[(BookPrediction)] = {
+  def predictRatings(test: List[ScaledShelfishness],
+                     training: List[ScaledShelfishness]): List[(BookPrediction)] = {
 
     test.map(testTuple => {
-
       val testTupleTagAndScore = testTuple.tagsAndScaledShelf
       val testTagScoreAndRating = testTupleTagAndScore.map(x => (x._2, testTuple.s.avgRating))
 
@@ -18,7 +16,8 @@ object NearestNeighborFunctions {
     }).map(thing => bookAndRating(thing))
   }
 
-  def unWeightedEuclideanDistance(predictors: List[(Double, Double)], target: List[(Double, Double)]): Double = {
+  def unWeightedEuclideanDistance(predictors: List[(Double, Double)],
+                                  target: List[(Double, Double)]): Double = {
     val zipped = predictors.zip(target)
     val sub = zipped.map(dd => math.pow(dd._1._1 - dd._2._1, 2)) ++
       zipped.map(dd => math.pow(((1/dd._1._2) * dd._1._2) - ((1/dd._2._2) * dd._2._2), 2))
@@ -40,7 +39,8 @@ object NearestNeighborFunctions {
                                 testTagScoreAndRating: List[(Double, Double)]): List[(Double, SimpleBook)] =
     training.map(train => {
       val unweightedED = unWeightedEuclideanDistance(
-        train.tagsAndScaledShelf.map(x => (x._2, train.s.avgRating)), testTagScoreAndRating)
+        train.tagsAndScaledShelf
+          .map(x => (x._2, train.s.avgRating)), testTagScoreAndRating)
       (unweightedED, train.s)
     })
 
@@ -57,9 +57,11 @@ object NearestNeighborFunctions {
 
   //x_scaled = (x - x.min) / (x.max - x.min)
 
-  def shelfishnessScaled(map: Map[Tag, MinMax], ls: List[(Tag, Double)]): List[(Tag, Double)] = {
+  def shelfishnessScaled(map: Map[Tag, MinMax],
+                        ls: List[(Tag, Double)]): List[(Tag, Double)] = {
 
-    val withMinMax = ls.map(td => (td._1, td._2, map.getOrElse(td._1, MinMax(0.0, 5.0))))
+    val withMinMax = ls.map(td =>
+      (td._1, td._2, map.getOrElse(td._1, MinMax(0.0, 5.0))))
 
     withMinMax.map{tup =>
       val min = tup._3.min
@@ -68,6 +70,7 @@ object NearestNeighborFunctions {
     }
   }
 
-  def scaleShelfishness(us: UnscaledShelfishness, map: Map[Tag, MinMax]): ScaledShelfishness =
+  def scaleShelfishness(us: UnscaledShelfishness,
+                        map: Map[Tag, MinMax]): ScaledShelfishness =
     ScaledShelfishness(us.s, shelfishnessScaled(map, us.tagsAndShelfishness))
 }

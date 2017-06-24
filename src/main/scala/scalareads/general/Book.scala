@@ -1,11 +1,14 @@
-package scalareads
+package scalareads.general
+
 
 import scalareads.values._
-import ScalareadsFunctions._
+import scalareads.ScalareadsFunctions._
+
 import java.io.{File, FileNotFoundException, IOException, PrintWriter}
 
 import scala.xml.{Elem, NodeSeq, XML}
 import scalaz.{-\/, \/-}
+
 
 case class Book(id: String,
                 title: Option[String],
@@ -39,8 +42,10 @@ object Book {
       \/-(XML.loadFile(getClass.getResource(s"/book_$id.txt").getPath))
     } catch {
       case f: NullPointerException => try {
-        val result = XML.load("https://www.goodreads.com/book/show/" + id + ".xml?key=" + env.devKey)
-        printToFile(new File(s"${env.resourcesPathWithEndSlash}book_$id.txt"))((p: PrintWriter) => p.println(result))
+        val result = XML.load("https://www.goodreads.com/book/show/" +
+          id + ".xml?key=" + env.devKey)
+        printToFile(new File(s"""${env.resourcesPathWithEndSlash}
+          book_$id.txt"""))((p: PrintWriter) => p.println(result))
         \/-(result)
       } catch {
         case i: IOException => -\/(IOError(i.toString))
@@ -61,25 +66,25 @@ object Book {
     }
 
     val title = getBookString("title")
-
     val authorID = e.\("book").\("authors").\("author").\("id").toList
-
     val authorName = e.\("book").\("authors").\("author").\("name").toList
-
     val avgRating =
       try {
-        getBookString("average_rating").map(s => s.toDouble)
+        getBookString("average_rating").map(_.toDouble)
       } catch {
         case e: NumberFormatException => None
       }
 
-    val simpleAuthors = authorID.zip(authorName).map(tup => SimpleAuthor(tup._1.text, tup._2.text))
+    val simpleAuthors = authorID.zip(authorName)
+      .map(tup => SimpleAuthor(tup._1.text, tup._2.text))
 
     val length = optionToInt(getBookString("num_pages"))
 
-    val popShelves: Map[Int, String] = {
-      val countOutput: List[Int] = e.\("book").\("popular_shelves").\("shelf").toList.map(x => x.\@("count").toInt)
-      val nameOutput: List[String] = e.\("book").\("popular_shelves").\("shelf").toList.map(x => x.\@("name"))
+    val popShelves = {
+      val countOutput = e.\("book").\("popular_shelves")
+        .\("shelf").toList.map(x => x.\@("count").toInt)
+      val nameOutput: List[String] = e.\("book").\("popular_shelves")
+        .\("shelf").toList.map(x => x.\@("name"))
 
       countOutput.zip(nameOutput).toMap
     }
@@ -94,12 +99,20 @@ object Book {
         val output: NodeSeq = e.\("book").\("work").\("rating_dist")
         if (output.isEmpty) None else Some(output.text)
       }
-      val split = a.fold(Array.empty[Array[String]])(b => b.split("\\|").map(s => s.split(":")))
+      val split = a.fold(Array.empty[Array[String]])(_.split("\\|")
+        .map(_.split(":")))
       val b = split.map(as => (as.head, as.last)).toMap
-      RatingDistribution(optionToInt(b.get("5")),optionToInt(b.get("4")), optionToInt(b.get("3")),
-        optionToInt(b.get("2")), optionToInt(b.get("1")), optionToInt(b.get("total")))
+
+      RatingDistribution(optionToInt(b.get("5")),
+                         optionToInt(b.get("4")),
+                         optionToInt(b.get("3")),
+                         optionToInt(b.get("2")),
+                         optionToInt(b.get("1")),
+                         optionToInt(b.get("total")))
     }
 
-    Book(i, title, simpleAuthors, length, avgRating, popShelves, origPubYear, ratingDist)
+    Book(i, title, simpleAuthors,
+      length, avgRating, popShelves,
+      origPubYear, ratingDist)
   }
 }
